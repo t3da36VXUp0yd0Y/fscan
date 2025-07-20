@@ -67,18 +67,6 @@ func InitOutput() error {
 		return fmt.Errorf(GetText("output_create_dir_failed", err))
 	}
 
-	if ApiAddr != "" {
-		OutputFormat = "csv"
-		Outputfile = filepath.Join(dir, "fscanapi.csv")
-		Num = 0
-		End = 0
-		if _, err := os.Stat(Outputfile); err == nil {
-			if err := os.Remove(Outputfile); err != nil {
-				return fmt.Errorf(GetText("output_file_remove_failed", err))
-			}
-		}
-	}
-
 	manager := &OutputManager{
 		outputPath:   Outputfile,
 		outputFormat: OutputFormat,
