@@ -3,13 +3,28 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/gocql/gocql"
-	"github.com/shadow1ng/fscan/Common"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gocql/gocql"
+	"github.com/shadow1ng/fscan/Common"
 )
+
+// CassandraProxyDialer 实现gocql.Dialer接口，支持代理连接
+type CassandraProxyDialer struct {
+	timeout time.Duration
+}
+
+func (d *CassandraProxyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	return Common.WrapperTcpWithContext(ctx, network, fmt.Sprintf("%s:%s", host, port))
+}
 
 // CassandraCredential 表示一个Cassandra凭据
 type CassandraCredential struct {
@@ -222,6 +237,13 @@ func CassandraConn(ctx context.Context, info *Common.HostInfo, user string, pass
 	cluster.ConnectTimeout = timeout
 	cluster.ProtoVersion = 4
 	cluster.Consistency = gocql.One
+
+	// 如果配置了代理，设置自定义Dialer
+	if Common.Socks5Proxy != "" {
+		cluster.Dialer = &CassandraProxyDialer{
+			timeout: timeout,
+		}
+	}
 
 	if user != "" || pass != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{

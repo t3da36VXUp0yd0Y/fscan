@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
 	"net"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // TelnetCredential 表示一个Telnet凭据
@@ -248,9 +249,8 @@ func tryTelnetCredential(ctx context.Context, info *Common.HostInfo, credential 
 
 // telnetConnWithContext 带上下文的Telnet连接尝试
 func telnetConnWithContext(ctx context.Context, info *Common.HostInfo, user, pass string) (bool, error) {
-	// 创建TCP连接(使用上下文控制)
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", info.Host, info.Ports))
+	// 创建TCP连接(使用支持context的socks代理)
+	conn, err := Common.WrapperTcpWithContext(ctx, "tcp", fmt.Sprintf("%s:%s", info.Host, info.Ports))
 	if err != nil {
 		return false, err
 	}

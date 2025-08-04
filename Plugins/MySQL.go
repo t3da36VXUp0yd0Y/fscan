@@ -4,12 +4,37 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/shadow1ng/fscan/Common"
+	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+	"github.com/shadow1ng/fscan/Common"
 )
+
+// MySQLProxyDialer 自定义dialer结构体
+type MySQLProxyDialer struct {
+	timeout time.Duration
+}
+
+// Dial 实现mysql.Dialer接口，支持socks代理
+func (d *MySQLProxyDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
+	return Common.WrapperTcpWithContext(ctx, "tcp", addr)
+}
+
+// registerMySQLDialer 注册MySQL自定义dialer
+func registerMySQLDialer() {
+	// 创建自定义dialer
+	dialer := &MySQLProxyDialer{
+		timeout: time.Duration(Common.Timeout) * time.Millisecond,
+	}
+
+	// 注册自定义dialer到go-sql-driver/mysql
+	mysql.RegisterDialContext("tcp-proxy", func(ctx context.Context, addr string) (net.Conn, error) {
+		return dialer.Dial(ctx, addr)
+	})
+}
 
 // MySQLCredential 表示一个MySQL凭据
 type MySQLCredential struct {
@@ -204,11 +229,24 @@ func MysqlConn(ctx context.Context, info *Common.HostInfo, user string, pass str
 	host, port, username, password := info.Host, info.Ports, user, pass
 	timeout := time.Duration(Common.Timeout) * time.Second
 
-	// 构造连接字符串，包含超时设置
-	connStr := fmt.Sprintf(
-		"%v:%v@tcp(%v:%v)/mysql?charset=utf8&timeout=%v",
-		username, password, host, port, timeout,
-	)
+	// 检查是否需要使用socks代理
+	var connStr string
+	if Common.Socks5Proxy != "" {
+		// 注册自定义dialer
+		registerMySQLDialer()
+
+		// 使用自定义网络类型的连接字符串
+		connStr = fmt.Sprintf(
+			"%v:%v@tcp-proxy(%v:%v)/mysql?charset=utf8&timeout=%v",
+			username, password, host, port, timeout,
+		)
+	} else {
+		// 标准连接字符串
+		connStr = fmt.Sprintf(
+			"%v:%v@tcp(%v:%v)/mysql?charset=utf8&timeout=%v",
+			username, password, host, port, timeout,
+		)
+	}
 
 	// 创建结果通道
 	resultChan := make(chan struct {

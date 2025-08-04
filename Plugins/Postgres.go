@@ -3,13 +3,31 @@ package Plugins
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
-	_ "github.com/lib/pq"
-	"github.com/shadow1ng/fscan/Common"
+	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
+	"github.com/shadow1ng/fscan/Common"
 )
+
+// PostgresProxyDialer 自定义dialer结构体
+type PostgresProxyDialer struct {
+	timeout time.Duration
+}
+
+// Dial 实现pq.Dialer接口，支持socks代理
+func (d *PostgresProxyDialer) Dial(network, address string) (net.Conn, error) {
+	return Common.WrapperTcpWithTimeout(network, address, d.timeout)
+}
+
+// DialTimeout 实现具有超时的连接
+func (d *PostgresProxyDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	return Common.WrapperTcpWithTimeout(network, address, timeout)
+}
 
 // PostgresCredential 表示一个PostgreSQL凭据
 type PostgresCredential struct {
@@ -202,7 +220,41 @@ func PostgresConn(ctx context.Context, info *Common.HostInfo, user string, pass 
 		user, pass, info.Host, info.Ports, Common.Timeout/1000, // 转换为秒
 	)
 
-	// 建立数据库连接
+	// 检查是否需要使用socks代理
+	if Common.Socks5Proxy != "" {
+		// 使用自定义dialer通过socks代理连接
+		dialer := &PostgresProxyDialer{
+			timeout: time.Duration(Common.Timeout) * time.Millisecond,
+		}
+
+		// 使用pq.DialOpen通过自定义dialer建立连接
+		conn, err := pq.DialOpen(dialer, connStr)
+		if err != nil {
+			return false, err
+		}
+		defer conn.Close()
+
+		// 转换为sql.DB进行测试
+		db := sql.OpenDB(&postgresConnector{conn: conn})
+		defer db.Close()
+
+		// 使用上下文测试连接
+		err = db.PingContext(ctx)
+		if err != nil {
+			return false, err
+		}
+
+		// 简单查询测试权限
+		var version string
+		err = db.QueryRowContext(ctx, "SELECT version()").Scan(&version)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	// 使用标准连接方式
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return false, err
@@ -228,6 +280,19 @@ func PostgresConn(ctx context.Context, info *Common.HostInfo, user string, pass 
 	}
 
 	return true, nil
+}
+
+// postgresConnector 封装driver.Conn为sql.driver.Connector
+type postgresConnector struct {
+	conn driver.Conn
+}
+
+func (c *postgresConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	return c.conn, nil
+}
+
+func (c *postgresConnector) Driver() driver.Driver {
+	return &pq.Driver{}
 }
 
 // savePostgresResult 保存PostgreSQL扫描结果

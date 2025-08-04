@@ -3,11 +3,11 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
 	"io"
-	"net"
 	"strings"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // MongodbScan 执行MongoDB未授权扫描
@@ -112,13 +112,8 @@ func MongodbUnauth(ctx context.Context, info *Common.HostInfo) (bool, error) {
 func checkMongoAuth(ctx context.Context, address string, packet []byte) (string, error) {
 	Common.LogDebug(fmt.Sprintf("建立MongoDB连接: %s", address))
 
-	// 创建连接超时上下文
-	connCtx, cancel := context.WithTimeout(ctx, time.Duration(Common.Timeout)*time.Second)
-	defer cancel()
-
 	// 使用带超时的连接
-	var d net.Dialer
-	conn, err := d.DialContext(connCtx, "tcp", address)
+	conn, err := Common.WrapperTcpWithTimeout("tcp", address, time.Duration(Common.Timeout)*time.Second)
 	if err != nil {
 		return "", fmt.Errorf("连接失败: %v", err)
 	}

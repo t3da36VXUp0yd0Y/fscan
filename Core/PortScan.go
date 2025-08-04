@@ -6,7 +6,6 @@ import (
 	"github.com/shadow1ng/fscan/Common"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,8 +52,8 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64) []string {
 			g.Go(func() error {
 				defer sem.Release(1)
 
-				// 连接测试
-				conn, err := net.DialTimeout("tcp", addr, to)
+				// 连接测试 - 支持SOCKS5代理
+				conn, err := Common.WrapperTcpWithTimeout("tcp", addr, to)
 				if err != nil {
 					return nil
 				}

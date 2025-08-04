@@ -3,12 +3,12 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/go-ldap/ldap/v3"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-ldap/ldap/v3"
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // LDAPCredential 表示一个LDAP凭据
@@ -210,13 +210,8 @@ func tryLDAPCredential(ctx context.Context, info *Common.HostInfo, credential LD
 func LDAPConn(ctx context.Context, info *Common.HostInfo, user string, pass string) (bool, error) {
 	address := fmt.Sprintf("%s:%s", info.Host, info.Ports)
 
-	// 创建拨号器并设置超时
-	dialer := &net.Dialer{
-		Timeout: time.Duration(Common.Timeout) * time.Second,
-	}
-
 	// 使用上下文控制的拨号过程
-	conn, err := dialer.DialContext(ctx, "tcp", address)
+	conn, err := Common.WrapperTcpWithContext(ctx, "tcp", address)
 	if err != nil {
 		return false, err
 	}

@@ -5,11 +5,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // POP3Credential 表示一个POP3凭据
@@ -255,12 +256,7 @@ func POP3Conn(ctx context.Context, info *Common.HostInfo, user string, pass stri
 	// 在协程中尝试连接，支持取消
 	go func() {
 		// 首先尝试普通连接
-		dialer := &net.Dialer{
-			Timeout: timeout,
-			// 增加KeepAlive设置，可能有助于处理一些服务器的限制
-			KeepAlive: 30 * time.Second,
-		}
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		conn, err := Common.WrapperTcpWithTimeout("tcp", addr, timeout)
 		if err == nil {
 			flag, authErr := tryPOP3Auth(conn, user, pass, timeout)
 			conn.Close()
@@ -287,7 +283,10 @@ func POP3Conn(ctx context.Context, info *Common.HostInfo, user string, pass stri
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 		}
-		tlsConn, tlsErr := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		// 对于TLS连接，暂时使用标准dialer
+		// TODO: 实现通过socks代理的TLS连接
+		tempDialer := &net.Dialer{Timeout: timeout}
+		tlsConn, tlsErr := tls.DialWithDialer(tempDialer, "tcp", addr, tlsConfig)
 		if tlsErr != nil {
 			select {
 			case <-ctx.Done():

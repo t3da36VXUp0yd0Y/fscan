@@ -3,11 +3,12 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/neo4j/neo4j-go-driver/v4/neo4j"
-	"github.com/shadow1ng/fscan/Common"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/neo4j/neo4j-go-driver/v4/neo4j"
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // Neo4jCredential 表示一个Neo4j凭据
@@ -268,6 +269,9 @@ func Neo4jConn(info *Common.HostInfo, user string, pass string) (bool, error) {
 	config := func(c *neo4j.Config) {
 		c.SocketConnectTimeout = timeout
 		c.ConnectionAcquisitionTimeout = timeout
+
+		// 注意：Neo4j驱动可能不支持代理配置
+		// 如果需要代理支持，可能需要使用更底层的连接方式
 	}
 
 	var driver neo4j.Driver

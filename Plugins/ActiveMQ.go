@@ -3,11 +3,11 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // ActiveMQCredential 表示一个ActiveMQ凭据
@@ -213,8 +213,7 @@ func ActiveMQConn(ctx context.Context, info *Common.HostInfo, user string, pass 
 	addr := fmt.Sprintf("%s:%v", info.Host, info.Ports)
 
 	// 使用上下文创建带超时的连接
-	dialer := &net.Dialer{Timeout: time.Duration(Common.Timeout) * time.Second}
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	conn, err := Common.WrapperTcpWithTimeout("tcp", addr, time.Duration(Common.Timeout)*time.Second)
 	if err != nil {
 		return false, err
 	}

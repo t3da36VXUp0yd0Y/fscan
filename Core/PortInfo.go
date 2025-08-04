@@ -407,8 +407,8 @@ func (i *Info) Write(msg []byte) error {
 	_, err := i.Conn.Write(msg)
 	if err != nil && strings.Contains(err.Error(), "close") {
 		i.Conn.Close()
-		// 连接关闭时重试
-		i.Conn, err = net.DialTimeout("tcp4", fmt.Sprintf("%s:%d", i.Address, i.Port), time.Duration(6)*time.Second)
+		// 连接关闭时重试 - 支持SOCKS5代理
+		i.Conn, err = Common.WrapperTcpWithTimeout("tcp", fmt.Sprintf("%s:%d", i.Address, i.Port), time.Duration(6)*time.Second)
 		if err == nil {
 			i.Conn.SetWriteDeadline(time.Now().Add(time.Second * time.Duration(WrTimeout)))
 			_, err = i.Conn.Write(msg)

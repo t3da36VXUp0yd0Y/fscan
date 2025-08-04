@@ -5,12 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // IMAPCredential 表示一个IMAP凭据
@@ -211,8 +212,7 @@ func IMAPConn(ctx context.Context, info *Common.HostInfo, user string, pass stri
 	// 在协程中尝试连接
 	go func() {
 		// 先尝试普通连接
-		dialer := &net.Dialer{Timeout: timeout}
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		conn, err := Common.WrapperTcpWithContext(ctx, "tcp", addr)
 		if err == nil {
 			flag, authErr := tryIMAPAuth(conn, user, pass, timeout)
 			conn.Close()
@@ -232,14 +232,16 @@ func IMAPConn(ctx context.Context, info *Common.HostInfo, user string, pass stri
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 		}
-		tlsConn, tlsErr := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+
+		// 使用支持代理的TLS连接
+		tlsConn, tlsErr := Common.WrapperTlsWithContext(ctx, "tcp", addr, tlsConfig)
 		if tlsErr != nil {
 			select {
 			case <-ctx.Done():
 			case resultChan <- struct {
 				success bool
 				err     error
-			}{false, fmt.Errorf("连接失败: %v", tlsErr)}:
+			}{false, fmt.Errorf("TLS连接失败: %v", tlsErr)}:
 			}
 			return
 		}

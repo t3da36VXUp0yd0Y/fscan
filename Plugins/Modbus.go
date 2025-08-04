@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // ModbusScanResult 表示 Modbus 扫描结果
@@ -77,8 +77,7 @@ func tryModbusScan(ctx context.Context, info *Common.HostInfo, timeoutSeconds in
 			// 在协程中执行扫描
 			go func() {
 				// 尝试建立连接
-				var d net.Dialer
-				conn, err := d.DialContext(connCtx, "tcp", target)
+				conn, err := Common.WrapperTcpWithContext(connCtx, "tcp", target)
 				if err != nil {
 					select {
 					case <-connCtx.Done():

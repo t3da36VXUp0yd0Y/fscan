@@ -3,12 +3,12 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 
 	"github.com/hirochachacha/go-smb2"
 )
@@ -316,9 +316,8 @@ func trySmb2Credential(ctx context.Context, info *Common.HostInfo, credential Sm
 
 // Smb2Con 尝试SMB2连接并进行认证，检查共享访问权限
 func Smb2Con(ctx context.Context, info *Common.HostInfo, user string, pass string, hash []byte, hasprint bool) (flag bool, err error, shares []string) {
-	// 建立TCP连接，使用上下文提供的超时控制
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:445", info.Host))
+	// 建立TCP连接，使用socks代理支持
+	conn, err := Common.WrapperTcpWithTimeout("tcp", fmt.Sprintf("%s:445", info.Host), time.Duration(Common.Timeout)*time.Second)
 	if err != nil {
 		return false, fmt.Errorf("连接失败: %v", err), nil
 	}

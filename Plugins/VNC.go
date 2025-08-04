@@ -3,11 +3,11 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/mitchellh/go-vnc"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"sync"
 	"time"
+
+	"github.com/mitchellh/go-vnc"
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // VncCredential 表示VNC凭据
@@ -190,8 +190,7 @@ func VncConn(ctx context.Context, info *Common.HostInfo, pass string) (bool, err
 	timeout := time.Duration(Common.Timeout) * time.Second
 
 	// 使用带上下文的TCP连接
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", Host, Port))
+	conn, err := Common.WrapperTcpWithTimeout("tcp", fmt.Sprintf("%s:%s", Host, Port), timeout)
 	if err != nil {
 		return false, err
 	}

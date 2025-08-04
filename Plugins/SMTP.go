@@ -3,12 +3,12 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"net/smtp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // SmtpCredential 表示一个SMTP凭据
@@ -253,11 +253,7 @@ func SmtpConn(info *Common.HostInfo, user string, pass string, timeoutSeconds in
 	addr := fmt.Sprintf("%s:%s", host, port)
 
 	// 设置连接超时
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
-	conn, err := dialer.Dial("tcp", addr)
+	conn, err := Common.WrapperTcpWithTimeout("tcp", addr, timeout)
 	if err != nil {
 		return false, err
 	}

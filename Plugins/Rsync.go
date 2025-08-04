@@ -3,11 +3,11 @@ package Plugins
 import (
 	"context"
 	"fmt"
-	"github.com/shadow1ng/fscan/Common"
-	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/Common"
 )
 
 // RsyncCredential 表示一个Rsync凭据
@@ -212,13 +212,8 @@ func RsyncConn(ctx context.Context, info *Common.HostInfo, user string, pass str
 	host, port := info.Host, info.Ports
 	timeout := time.Duration(Common.Timeout) * time.Second
 
-	// 设置带有上下文的拨号器
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
 	// 建立连接
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", host, port))
+	conn, err := Common.WrapperTcpWithTimeout("tcp", fmt.Sprintf("%s:%s", host, port), timeout)
 	if err != nil {
 		return false, "", err
 	}
@@ -335,13 +330,11 @@ func RsyncConn(ctx context.Context, info *Common.HostInfo, user string, pass str
 			}
 
 			// 5. 为每个模块创建新连接尝试认证
-			authConn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", host, port))
+			authConn, err := Common.WrapperTcpWithTimeout(host, port, timeout)
 			if err != nil {
 				continue
 			}
-			defer authConn.Close()
-
-			// 重复初始握手
+			defer authConn.Close() // 重复初始握手
 			authConn.SetReadDeadline(time.Now().Add(timeout))
 			_, err = authConn.Read(buffer)
 			if err != nil {

@@ -4,12 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	_ "github.com/denisenkom/go-mssqldb"
-	"github.com/shadow1ng/fscan/Common"
+	"net"
 	"strings"
 	"sync"
 	"time"
+
+	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/shadow1ng/fscan/Common"
 )
+
+// MSSQLProxyDialer 自定义dialer结构体
+type MSSQLProxyDialer struct {
+	timeout time.Duration
+}
+
+// DialContext 实现mssql.Dialer接口，支持socks代理
+func (d *MSSQLProxyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return Common.WrapperTcpWithContext(ctx, network, addr)
+}
 
 // MssqlCredential 表示一个MSSQL凭据
 type MssqlCredential struct {
@@ -205,7 +217,58 @@ func MssqlConn(ctx context.Context, info *Common.HostInfo, user string, pass str
 		host, username, password, port,
 	)
 
-	// 建立数据库连接
+	// 检查是否需要使用socks代理
+	if Common.Socks5Proxy != "" {
+		// 使用自定义dialer创建连接器
+		connector, err := mssql.NewConnector(connStr)
+		if err != nil {
+			return false, err
+		}
+
+		// 设置自定义dialer
+		connector.Dialer = &MSSQLProxyDialer{
+			timeout: time.Duration(Common.Timeout) * time.Millisecond,
+		}
+
+		// 使用连接器创建数据库连接
+		db := sql.OpenDB(connector)
+		defer db.Close()
+
+		// 设置连接参数
+		db.SetConnMaxLifetime(timeout)
+		db.SetConnMaxIdleTime(timeout)
+		db.SetMaxIdleConns(0)
+		db.SetMaxOpenConns(1)
+
+		// 通过上下文执行ping操作，以支持超时控制
+		pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
+		defer pingCancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- db.PingContext(pingCtx)
+		}()
+
+		// 等待ping结果或者超时
+		select {
+		case err := <-errChan:
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		case <-ctx.Done():
+			// 全局超时或取消
+			return false, ctx.Err()
+		case <-pingCtx.Done():
+			if pingCtx.Err() == context.DeadlineExceeded {
+				// 单个连接超时
+				return false, fmt.Errorf("连接超时")
+			}
+			return false, pingCtx.Err()
+		}
+	}
+
+	// 使用标准连接方式
 	db, err := sql.Open("mssql", connStr)
 	if err != nil {
 		return false, err
