@@ -108,9 +108,8 @@ func parsePasswords() {
 	if Password != "" {
 		passes := strings.Split(Password, ",")
 		for _, pass := range passes {
-			if pass != "" {
-				pwdList = append(pwdList, pass)
-			}
+			// 保留空密码，因为空口令是重要的安全测试场景
+			pwdList = append(pwdList, pass)
 		}
 		Passwords = pwdList
 		LogBase(GetText("load_passwords", len(pwdList)))
@@ -125,9 +124,8 @@ func parsePasswords() {
 		}
 
 		for _, pass := range passes {
-			if pass != "" {
-				pwdList = append(pwdList, pass)
-			}
+			// 保留空密码，用户可能在文件中故意添加空行来测试空口令
+			pwdList = append(pwdList, pass)
 		}
 		Passwords = pwdList
 		LogBase(GetText("load_passwords_from_file", len(passes)))
