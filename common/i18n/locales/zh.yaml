@@ -438,6 +438,8 @@ mongodb_auth_required:
   other: "MongoDB {{.Arg1}} 需要认证"
 elasticsearch_credential:
   other: "Elasticsearch {{.Arg1}} {{.Arg2}}:{{.Arg3}}"
+elasticsearch_unauth:
+  other: "Elasticsearch {{.Arg1}} 未授权访问"
 elasticsearch_service:
   other: "Elasticsearch {{.Arg1}} {{.Arg2}}"
 mysql_credential:

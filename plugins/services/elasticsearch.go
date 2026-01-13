@@ -32,6 +32,18 @@ func (p *ElasticsearchPlugin) Scan(ctx context.Context, info *common.HostInfo, c
 		return p.identifyService(ctx, info, config, state)
 	}
 
+	// 首先检测未授权访问
+	if p.testCredential(ctx, info, Credential{Username: "", Password: ""}, config, state) {
+		common.LogSuccess(i18n.Tr("elasticsearch_unauth", target))
+		return &ScanResult{
+			Success: true,
+			Type:    plugins.ResultTypeVuln,
+			Service: "elasticsearch",
+			VulInfo: "未授权访问",
+		}
+	}
+
+	// 如果需要认证，尝试常见凭据
 	credentials := GenerateCredentials("elasticsearch", config)
 	if len(credentials) == 0 {
 		return &ScanResult{
@@ -46,7 +58,7 @@ func (p *ElasticsearchPlugin) Scan(ctx context.Context, info *common.HostInfo, c
 			common.LogSuccess(i18n.Tr("elasticsearch_credential", target, cred.Username, cred.Password))
 			return &ScanResult{
 				Success:  true,
-					Type:     plugins.ResultTypeCredential,
+				Type:     plugins.ResultTypeCredential,
 				Service:  "elasticsearch",
 				Username: cred.Username,
 				Password: cred.Password,
