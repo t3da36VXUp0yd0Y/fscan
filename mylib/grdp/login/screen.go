@@ -323,7 +323,6 @@ func (g *Client) ScreenShot(domain, user, pwd string, timeout int64, rdpProtocol
 	now := start
 	screenImage := image.NewRGBA(image.Rect(0, 0, pic_length, pic_width))
 
-	index := 1
 	targetSlice := strings.Split(g.Host, ":")
 	ip := targetSlice[0]
 	port := targetSlice[1]
@@ -489,11 +488,7 @@ loop:
 	}
 	glog.Debug("循环结束，总时间过去了：", time.Since(start))
 
-	if g.x224.ServerChooseProtocol() == x224.PROTOCOL_HYBRID && g.x224.ServerChooseProtocol() == x224.PROTOCOL_HYBRID {
-		if err == nil {
-			status = true
-		}
-	}
+	// 认证结果由 success 事件回调设置，不在此处覆盖
 
 	if needReconnect {
 		return status, err, reconnProtocol
@@ -501,26 +496,27 @@ loop:
 		glog.Info("get screen ok")
 		// Encode to jpeg.
 		var imageBuf bytes.Buffer
-		err = jpeg.Encode(&imageBuf, screenImage, nil)
-
-		if err != nil {
-			log.Panic(err)
+		encodeErr := jpeg.Encode(&imageBuf, screenImage, nil)
+		if encodeErr != nil {
+			glog.Error("Failed to encode screenshot:", encodeErr)
+			return status, err, reconnProtocol
 		}
 
 		// Write to file.
 		saveDate := time.Now().Format("2006_01_02_15_04_05")
 		fo, writeErr := os.Create(fmt.Sprintf("%s/%s_%s_%s.jpg", OutputDir, ip, port, saveDate))
-		index += 1
 		if writeErr != nil {
 			glog.Error("Can not create rdp screenshot file:", writeErr)
 		} else {
+			defer fo.Close()
 			fw := bufio.NewWriter(fo)
 			_, writeErr := fw.Write(imageBuf.Bytes())
 			if writeErr != nil {
 				glog.Error("Can not write rdp screenshot file:", writeErr)
+			} else {
+				fw.Flush()
 			}
 		}
-
 	}
 	return status, err, reconnProtocol
 
@@ -529,7 +525,6 @@ loop:
 func (g *Client) Crack(domain, user, pwd string, timeout int64, rdpProtocol uint32) (status bool, err error, reconnProtocol uint32) {
 	//glog.SetLevel(glog.ERROR)
 	reconnProtocol = rdpProtocol
-	needReconnect := false
 	refresh := make(chan bool)
 	exitFlag := make(chan bool)
 	start := time.Now()
@@ -570,7 +565,6 @@ func (g *Client) Crack(domain, user, pwd string, timeout int64, rdpProtocol uint
 
 	g.x224.SetRequestedProtocol(rdpProtocol) //x224.PROTOCOL_SSL , x224.PROTOCOL_RDP , x224.PROTOCOL_HYBRID , x224.PROTOCOL_HYBRID_EX
 	g.x224.On("reconnect", func(protocol uint32) {
-		needReconnect = true
 		reconnProtocol = protocol
 		glog.Info("need reconnect with protocol:", protocol)
 		g.pdu.Emit("close")
@@ -649,14 +643,6 @@ loop:
 	}
 	glog.Debug("循环结束，总时间过去了：", time.Since(start))
 
-	if g.x224.ServerChooseProtocol() == x224.PROTOCOL_HYBRID && g.x224.ServerChooseProtocol() == x224.PROTOCOL_HYBRID {
-		if err == nil {
-			status = true
-		}
-	}
-
-	if needReconnect {
-		return status, err, reconnProtocol
-	}
+	// 认证结果由 success 事件回调设置，不在此处覆盖
 	return status, err, reconnProtocol
 }

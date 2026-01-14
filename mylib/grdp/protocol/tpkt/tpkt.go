@@ -317,9 +317,28 @@ func (t *TPKT) recvPubKeyInc(data []byte) error {
 		glog.Info("DecodeDERTRequest", err)
 		return err
 	}
+
+	// 检查服务器是否返回错误码（认证失败）
+	if tsreq.ErrorCode != 0 {
+		glog.Error("NLA authentication failed with error code:", tsreq.ErrorCode)
+		return fmt.Errorf("NLA auth failed: error code %d", tsreq.ErrorCode)
+	}
+
+	// 验证 PubKeyAuth 不为空（认证成功的标志）
+	if len(tsreq.PubKeyAuth) == 0 {
+		glog.Error("NLA authentication failed: empty PubKeyAuth")
+		return fmt.Errorf("NLA auth failed: empty PubKeyAuth")
+	}
+
 	glog.Trace("PubKeyAuth:", tsreq.PubKeyAuth)
-	//ignore
-	//pubkey := t.ntlmSec.GssDecrypt([]byte(tsreq.PubKeyAuth))
+
+	// 验证服务器返回的公钥（可选但推荐）
+	pubkey := t.ntlmSec.GssDecrypt(tsreq.PubKeyAuth)
+	if pubkey == nil {
+		glog.Error("NLA authentication failed: invalid PubKeyAuth signature")
+		return fmt.Errorf("NLA auth failed: invalid PubKeyAuth")
+	}
+
 	domain, username, password := t.ntlm.GetEncodedCredentials()
 	credentials := nla.EncodeDERTCredentials(domain, username, password)
 	authInfo := t.ntlmSec.GssEncrypt(credentials)

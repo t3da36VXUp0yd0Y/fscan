@@ -26,7 +26,10 @@ func ReadBytes(len int, r io.Reader) ([]byte, error) {
 
 func ReadByte(r io.Reader) (byte, error) {
 	b, err := ReadBytes(1, r)
-	return b[0], err
+	if err != nil || len(b) == 0 {
+		return 0, err
+	}
+	return b[0], nil
 }
 
 func ReadUInt8(r io.Reader) (uint8, error) {
@@ -42,7 +45,7 @@ func ReadUint16LE(r io.Reader) (uint16, error) {
 	b := make([]byte, 2)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return binary.LittleEndian.Uint16(b), nil
 }
@@ -51,7 +54,7 @@ func ReadUint16BE(r io.Reader) (uint16, error) {
 	b := make([]byte, 2)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return binary.BigEndian.Uint16(b), nil
 }
@@ -60,7 +63,7 @@ func ReadUInt32LE(r io.Reader) (uint32, error) {
 	b := make([]byte, 4)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return binary.LittleEndian.Uint32(b), nil
 }
@@ -69,7 +72,7 @@ func ReadUInt32BE(r io.Reader) (uint32, error) {
 	b := make([]byte, 4)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return binary.BigEndian.Uint32(b), nil
 }

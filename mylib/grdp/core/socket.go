@@ -69,6 +69,13 @@ func (s *SocketLayer) TlsPubKey() ([]byte, error) {
 	if s.tlsConn == nil {
 		return nil, errors.New("TLS conn does not exist")
 	}
-	pub := s.tlsConn.ConnectionState().PeerCertificates[0].PublicKey.(*rsa.PublicKey)
+	certs := s.tlsConn.ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return nil, errors.New("no peer certificates")
+	}
+	pub, ok := certs[0].PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("invalid public key type")
+	}
 	return asn1ber.Marshal(*pub)
 }
