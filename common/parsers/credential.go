@@ -354,6 +354,18 @@ func (cp *CredentialParser) parseUserPassPairs(input *CredentialInput) ([]config
 	var errors []error
 	var warnings []string
 
+	// 如果命令行同时指定了单个用户名和单个密码（不是逗号分隔的多个），
+	// 将其视为精确的用户密码对，而不是做笛卡尔积
+	if input.Username != "" && input.Password != "" &&
+		!strings.Contains(input.Username, ",") && !strings.Contains(input.Password, ",") &&
+		input.UsersFile == "" && input.PasswordsFile == "" && input.UserPassFile == "" {
+		pairs = append(pairs, config.CredentialPair{
+			Username: strings.TrimSpace(input.Username),
+			Password: input.Password, // 密码不trim，可能包含空格
+		})
+		return pairs, errors, warnings
+	}
+
 	if input.UserPassFile == "" {
 		return pairs, errors, warnings
 	}

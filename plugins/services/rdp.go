@@ -39,12 +39,23 @@ func (p *RDPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 		login.Socks5Proxy = config.Network.Socks5Proxy
 	}
 
+	// 生成测试凭据（提前生成，用于判断是否为单一凭据测试）
+	credentials := GenerateCredentials("rdp", config)
+
+	// 判断是否为单一凭据测试模式（只有1个凭据时跳过指纹识别）
+	isSingleCredentialTest := len(credentials) == 1
+
+	var osInfo map[string]any
+
 	// ============================================
 	// 第一阶段：系统指纹识别（无需密码）
+	// 单一凭据测试时跳过此阶段，减少连接次数
 	// ============================================
-	osInfo := p.probeOSInfo(target, config, state)
-	if len(osInfo) > 0 {
-		p.logOSInfo(target, osInfo)
+	if !isSingleCredentialTest {
+		osInfo = p.probeOSInfo(target, config, state)
+		if len(osInfo) > 0 {
+			p.logOSInfo(target, osInfo)
+		}
 	}
 
 	// ============================================
@@ -52,6 +63,12 @@ func (p *RDPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 	// ============================================
 	if config.DisableBrute {
 		// 禁用暴力破解，仅返回服务识别结果
+		if osInfo == nil {
+			osInfo = p.probeOSInfo(target, config, state)
+			if len(osInfo) > 0 {
+				p.logOSInfo(target, osInfo)
+			}
+		}
 		banner := p.buildBanner(osInfo)
 		common.LogSuccess(i18n.Tr("rdp_service", target, banner))
 		return &ScanResult{
@@ -61,9 +78,6 @@ func (p *RDPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 			Banner:  banner,
 		}
 	}
-
-	// 生成测试凭据
-	credentials := GenerateCredentials("rdp", config)
 	if len(credentials) == 0 {
 		credentials = []Credential{
 			{Username: "administrator", Password: ""},

@@ -24,14 +24,35 @@ func Initialize(info *HostInfo) (*InitResult, error) {
 	// 初始化日志系统
 	InitLogger()
 
-	// 解析和验证参数
+	// 解析和验证参数（会更新 globalConfig 的凭据信息）
 	if err := Parse(info); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
 	}
 
+	// 获取 Parse 更新过的凭据信息
+	parsedCreds := GetGlobalConfig().Credentials
+
 	// 从 FlagVars 构建 Config（新架构）
 	cfg := BuildConfigFromFlags(flagVars)
 	state := NewState()
+
+	// 关键修复：应用 Parse 解析的凭据结果到新 Config
+	// Parse 会根据 -user/-pwd/-usera/-pwda 等参数更新凭据
+	if len(parsedCreds.UserPassPairs) > 0 {
+		cfg.Credentials.UserPassPairs = parsedCreds.UserPassPairs
+	}
+	if len(parsedCreds.Userdict) > 0 {
+		cfg.Credentials.Userdict = parsedCreds.Userdict
+	}
+	if len(parsedCreds.Passwords) > 0 {
+		cfg.Credentials.Passwords = parsedCreds.Passwords
+	}
+	if len(parsedCreds.HashValues) > 0 {
+		cfg.Credentials.HashValues = parsedCreds.HashValues
+	}
+	if len(parsedCreds.HashBytes) > 0 {
+		cfg.Credentials.HashBytes = parsedCreds.HashBytes
+	}
 
 	// 设置全局实例
 	SetGlobalConfig(cfg)
