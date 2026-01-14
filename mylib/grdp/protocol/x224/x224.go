@@ -409,7 +409,14 @@ func (x *X224) recvConnectionConfirm(s []byte) {
 		err := x.transport.(*tpkt.TPKT).StartNLA()
 		glog.Debug("nla end, err?:", err)
 		if err != nil {
+			// 检查是否是NLA仅验证模式的成功返回
+			if err == tpkt.ErrNLAAuthSuccess {
+				glog.Info("NLA auth-only mode: credentials verified successfully")
+				x.Emit("error", err) // 通过 error 事件传播成功信号
+				return
+			}
 			glog.Error("start NLA failed:", err)
+			x.Emit("error", err)
 			return
 		}
 		x.Emit("connect", x.selectedProtocol)

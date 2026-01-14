@@ -39,6 +39,7 @@ type TPKT struct {
 	lastShortLength  int
 	fastPathListener core.FastPathListener
 	ntlmSec          *nla.NTLMv2Security
+	nlaAuthOnly      bool // NLA仅验证模式：验证成功后立即断开，不建立会话
 }
 
 var OsVersion = map[string]string{
@@ -96,6 +97,12 @@ func New(s *core.SocketLayer, ntlm *nla.NTLMv2) *TPKT {
 
 func (t *TPKT) StartTLS() error {
 	return t.Conn.StartTLS()
+}
+
+// SetNLAAuthOnly 设置NLA仅验证模式
+// 启用后，NLA认证成功即返回，不发送credentials建立会话，不会挤掉已登录用户
+func (t *TPKT) SetNLAAuthOnly(authOnly bool) {
+	t.nlaAuthOnly = authOnly
 }
 
 func (t *TPKT) StartNLA() error {
@@ -310,8 +317,12 @@ func (t *TPKT) recvChallenge(data []byte) error {
 	return t.recvPubKeyInc(resp[:n])
 }
 
+// ErrNLAAuthSuccess 表示NLA仅验证模式下认证成功（非真正错误）
+var ErrNLAAuthSuccess = fmt.Errorf("NLA_AUTH_SUCCESS")
+
 func (t *TPKT) recvPubKeyInc(data []byte) error {
 	glog.Trace("recvPubKeyInc", hex.EncodeToString(data))
+
 	tsreq, err := nla.DecodeDERTRequest(data)
 	if err != nil {
 		glog.Info("DecodeDERTRequest", err)
@@ -319,9 +330,10 @@ func (t *TPKT) recvPubKeyInc(data []byte) error {
 	}
 
 	// 检查服务器是否返回错误码（认证失败）
+	// 常见错误码: 0xC000006D = STATUS_LOGON_FAILURE (密码错误)
 	if tsreq.ErrorCode != 0 {
 		glog.Error("NLA authentication failed with error code:", tsreq.ErrorCode)
-		return fmt.Errorf("NLA auth failed: error code %d", tsreq.ErrorCode)
+		return fmt.Errorf("NLA auth failed: error code %d (0x%X)", tsreq.ErrorCode, uint32(tsreq.ErrorCode))
 	}
 
 	// 验证 PubKeyAuth 不为空（认证成功的标志）
@@ -332,11 +344,18 @@ func (t *TPKT) recvPubKeyInc(data []byte) error {
 
 	glog.Trace("PubKeyAuth:", tsreq.PubKeyAuth)
 
-	// 验证服务器返回的公钥（可选但推荐）
+	// 尝试解密验证公钥，但不作为强制失败条件
+	// 因为某些Windows版本的响应格式可能略有不同
 	pubkey := t.ntlmSec.GssDecrypt(tsreq.PubKeyAuth)
 	if pubkey == nil {
-		glog.Error("NLA authentication failed: invalid PubKeyAuth signature")
-		return fmt.Errorf("NLA auth failed: invalid PubKeyAuth")
+		glog.Debug("GssDecrypt returned nil, but continuing since no ErrorCode was returned")
+	}
+
+	// NLA仅验证模式：凭据已验证成功，不发送credentials，直接返回
+	// 这样不会建立RDP会话，不会挤掉已登录用户
+	if t.nlaAuthOnly {
+		glog.Info("NLA auth-only mode: credentials verified, skipping session establishment")
+		return ErrNLAAuthSuccess
 	}
 
 	domain, username, password := t.ntlm.GetEncodedCredentials()

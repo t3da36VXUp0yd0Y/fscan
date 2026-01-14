@@ -155,19 +155,18 @@ func (p *RDPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 	}
 }
 
-// rdpCrack 使用grdp库进行真实RDP认证
+// rdpCrack 使用NLA认证验证凭据，不建立完整会话，不会挤掉已登录用户
 func (p *RDPPlugin) rdpCrack(host, domain, user, password string, config *common.Config, state *common.State) (bool, error) {
 	timeout := int64(config.Timeout.Seconds())
 
-	// 优先尝试 SSL 协议
-	success, err := login.RdpCrack(host, domain, user, password, timeout, x224.PROTOCOL_SSL)
+	// 使用NLA仅验证模式：只验证凭据，不建立RDP会话
+	// 这样不会挤掉目标机器上已登录的用户
+	success, err := login.NlaAuth(host, domain, user, password, timeout)
 	if success {
 		state.IncrementTCPSuccessPacketCount()
 		return true, nil
 	}
 
-	// SSL失败，grdp会自动尝试协议降级（PROTOCOL_RDP）
-	// 这里的err包含了自动重连后的结果
 	if err != nil && strings.Contains(err.Error(), "dial err") {
 		state.IncrementTCPFailedPacketCount()
 		return false, err

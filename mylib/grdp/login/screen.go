@@ -67,6 +67,13 @@ func RdpCrack(host, domain, user, password string, timeout int64, rdpProtocol ui
 	}
 }
 
+// NlaAuth 仅进行NLA认证验证，不建立RDP会话，不会挤掉已登录用户
+// 返回: (认证成功, 错误信息)
+func NlaAuth(host, domain, user, password string, timeout int64) (bool, error) {
+	g := NewClient(host, LogLever)
+	return g.NlaAuthOnly(domain, user, password, timeout)
+}
+
 type Client struct {
 	Host string // ip:port
 	tpkt *tpkt.TPKT
@@ -211,6 +218,55 @@ func ToRGBA(pixel int, i int, data []byte) (r, g, b, a uint8) {
 	}
 
 	return
+}
+
+// NlaAuthOnly 仅进行NLA认证验证凭据，不建立RDP会话
+// 这样不会挤掉已登录的用户
+func (g *Client) NlaAuthOnly(domain, user, pwd string, timeout int64) (bool, error) {
+	conn, err := WrapperTcpWithTimeout("tcp", g.Host, time.Duration(timeout)*time.Second)
+	if err != nil {
+		return false, fmt.Errorf("[dial err] %v", err)
+	}
+	defer conn.Close()
+
+	g.tpkt = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, pwd))
+	g.x224 = x224.New(g.tpkt)
+
+	// 设置NLA仅验证模式
+	g.tpkt.SetNLAAuthOnly(true)
+
+	// 使用 PROTOCOL_HYBRID (NLA) 协议
+	g.x224.SetRequestedProtocol(x224.PROTOCOL_HYBRID)
+
+	// 用于接收结果的通道
+	resultChan := make(chan error, 1)
+
+	// 监听错误事件（包括 ErrNLAAuthSuccess）
+	g.x224.On("error", func(err error) {
+		resultChan <- err
+	})
+
+	// 监听连接事件（不应该发生在 auth-only 模式）
+	g.x224.On("connect", func(protocol uint32) {
+		resultChan <- fmt.Errorf("unexpected connect in auth-only mode")
+	})
+
+	// 发起连接
+	err = g.x224.Connect()
+	if err != nil {
+		return false, err
+	}
+
+	// 等待结果或超时
+	select {
+	case err := <-resultChan:
+		if err == tpkt.ErrNLAAuthSuccess {
+			return true, nil
+		}
+		return false, err
+	case <-time.After(time.Duration(timeout*3) * time.Second):
+		return false, fmt.Errorf("NLA auth timeout")
+	}
 }
 
 func (g *Client) ProbeOSInfo(host, domain, user, pwd string, timeout int64, rdpProtocol uint32) (info map[string]any) {
