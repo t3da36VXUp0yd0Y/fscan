@@ -124,7 +124,7 @@ func (p *RDPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 			}
 
 			result := fmt.Sprintf("RDP %s %s\\%s %s", target, displayDomain, cred.Username, cred.Password)
-			common.LogSuccess(result)
+			common.LogVuln(result)
 
 			return &ScanResult{
 				Success:  true,

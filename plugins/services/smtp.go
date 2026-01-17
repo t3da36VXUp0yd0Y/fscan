@@ -61,7 +61,7 @@ func (p *SMTPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *co
 	result := TestCredentialsConcurrently(ctx, creds, authFn, "smtp", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("smtp_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("smtp_credential", target, result.Username, result.Password))
 	}
 
 	return result

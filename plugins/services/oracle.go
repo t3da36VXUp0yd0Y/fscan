@@ -53,7 +53,7 @@ func (p *OraclePlugin) Scan(ctx context.Context, info *common.HostInfo, config *
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "oracle", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("oracle_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("oracle_credential", target, result.Username, result.Password))
 	}
 
 	return result
@@ -172,7 +172,7 @@ func (p *OraclePlugin) testUnauthorizedAccess(ctx context.Context, info *common.
 			if result.Conn != nil {
 				_ = result.Conn.Close()
 			}
-			common.LogSuccess(i18n.Tr("oracle_default_account", target, cred.Username, cred.Password))
+			common.LogVuln(i18n.Tr("oracle_default_account", target, cred.Username, cred.Password))
 			return &ScanResult{
 				Type:     plugins.ResultTypeVuln,
 				Success:  true,

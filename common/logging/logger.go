@@ -95,6 +95,11 @@ func (l *Logger) Success(msg string) {
 	l.log(LevelSuccess, msg)
 }
 
+// Vuln 输出漏洞/重要发现信息
+func (l *Logger) Vuln(msg string) {
+	l.log(LevelVuln, msg)
+}
+
 // Error 输出错误信息
 func (l *Logger) Error(msg string) {
 	l.log(LevelError, msg)
@@ -130,6 +135,8 @@ func (l *Logger) shouldLog(level LogLevel) bool {
 		return true
 	case LevelError:
 		return level == LevelError
+	case LevelVuln:
+		return level == LevelVuln
 	case LevelBase:
 		return level == LevelBase
 	case LevelInfo:
@@ -139,15 +146,15 @@ func (l *Logger) shouldLog(level LogLevel) bool {
 	case LevelDebug:
 		return level == LevelDebug
 	case LevelInfoSuccess:
-		return level == LevelInfo || level == LevelSuccess
+		return level == LevelInfo || level == LevelSuccess || level == LevelVuln
 	case LevelBaseInfoSuccess:
-		return level == LevelBase || level == LevelInfo || level == LevelSuccess
+		return level == LevelBase || level == LevelInfo || level == LevelSuccess || level == LevelVuln
 	default:
 		// 向后兼容：字符串"debug"显示所有
 		if string(l.config.Level) == "debug" {
 			return true
 		}
-		return level == LevelInfo || level == LevelSuccess
+		return level == LevelInfo || level == LevelSuccess || level == LevelVuln
 	}
 }
 
@@ -201,6 +208,8 @@ func (l *Logger) formatElapsedTime(elapsed time.Duration) string {
 // getLevelPrefix 获取日志级别前缀
 func (l *Logger) getLevelPrefix(level LogLevel) string {
 	switch level {
+	case LevelVuln:
+		return PrefixVuln
 	case LevelSuccess:
 		return PrefixSuccess
 	case LevelInfo:

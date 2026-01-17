@@ -70,7 +70,7 @@ func (p *MS17010Plugin) Scan(ctx context.Context, info *common.HostInfo, config 
 		if osVersion != "" {
 			msg += fmt.Sprintf(" [%s]", osVersion)
 		}
-		common.LogSuccess(msg)
+		common.LogVuln(msg)
 
 		return &ScanResult{
 			Success: true,

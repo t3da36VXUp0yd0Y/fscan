@@ -55,7 +55,7 @@ func (p *RabbitMQPlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "rabbitmq", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("rabbitmq_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("rabbitmq_credential", target, result.Username, result.Password))
 	}
 
 	return result

@@ -33,7 +33,7 @@ func (p *MemcachedPlugin) Scan(ctx context.Context, info *common.HostInfo, confi
 
 	// 检测未授权访问
 	if result := p.testUnauthorizedAccess(ctx, info, config, state); result != nil && result.Success {
-		common.LogSuccess(i18n.Tr("memcached_unauth", target))
+		common.LogVuln(i18n.Tr("memcached_unauth", target))
 		return result
 	}
 

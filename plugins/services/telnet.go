@@ -71,7 +71,7 @@ func (p *TelnetPlugin) Scan(ctx context.Context, info *common.HostInfo, config *
 	result := TestCredentialsConcurrently(ctx, creds, authFn, "telnet", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("telnet_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("telnet_credential", target, result.Username, result.Password))
 	}
 
 	return result

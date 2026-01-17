@@ -133,7 +133,7 @@ func CheckMultiPoc(req *http.Request, pocs []*Poc, workers int, pocCtx *POCConte
 					}
 
 					// 输出成功日志
-					common.LogSuccess(logMsg)
+					common.LogVuln(logMsg)
 				}
 			}
 		}()
@@ -655,7 +655,7 @@ func recordVulnerabilityResult(targetURL string, pocDef *Poc, params StrMap, ski
 	}
 
 	// 输出成功日志
-	common.LogSuccess(logMsg)
+	common.LogVuln(logMsg)
 }
 
 // isFuzz 检查规则是否包含需要Fuzz测试的参数

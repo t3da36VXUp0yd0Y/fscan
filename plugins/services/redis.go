@@ -41,7 +41,7 @@ func (p *RedisPlugin) Scan(ctx context.Context, info *common.HostInfo, config *c
 
 	// 首先检查未授权访问
 	if result := p.testUnauthorizedAccess(ctx, info, config, state); result != nil && result.Success {
-		common.LogSuccess(i18n.Tr("redis_unauth_success", target)) //nolint:govet
+		common.LogVuln(i18n.Tr("redis_unauth_success", target)) //nolint:govet
 
 		// 如果需要利用，重新建立连接执行
 		if p.shouldExploit(config) {
@@ -62,7 +62,7 @@ func (p *RedisPlugin) Scan(ctx context.Context, info *common.HostInfo, config *c
 
 	// 如果成功，记录并执行利用
 	if result.Success {
-		common.LogSuccess(i18n.Tr("redis_scan_success", target, result.Password)) //nolint:govet
+		common.LogVuln(i18n.Tr("redis_scan_success", target, result.Password)) //nolint:govet
 
 		// 如果需要利用，重新建立连接执行
 		if p.shouldExploit(config) {
@@ -352,7 +352,7 @@ func (p *RedisPlugin) exploit(ctx context.Context, info *common.HostInfo, conn n
 		if success, _, writeErr := p.writeCustomFile(conn, dirPath, fileName, config.Redis.WriteContent); writeErr != nil {
 			common.LogError(i18n.Tr("redis_write_failed", writeErr))
 		} else if success {
-			common.LogSuccess(i18n.Tr("redis_write_success", config.Redis.WritePath))
+			common.LogVuln(i18n.Tr("redis_write_success", config.Redis.WritePath))
 		}
 	}
 
@@ -368,7 +368,7 @@ func (p *RedisPlugin) exploit(ctx context.Context, info *common.HostInfo, conn n
 			if success, _, writeErr := p.writeCustomFile(conn, dirPath, fileName, string(fileContent)); writeErr != nil {
 				common.LogError(i18n.Tr("redis_write_failed", writeErr))
 			} else if success {
-				common.LogSuccess(i18n.Tr("redis_file_write_success", config.Redis.WriteFile, config.Redis.WritePath))
+				common.LogVuln(i18n.Tr("redis_file_write_success", config.Redis.WriteFile, config.Redis.WritePath))
 			}
 		}
 	}
@@ -378,7 +378,7 @@ func (p *RedisPlugin) exploit(ctx context.Context, info *common.HostInfo, conn n
 		if success, _, keyErr := p.writeKey(conn, config.Redis.File); keyErr != nil {
 			common.LogError(i18n.Tr("redis_ssh_key_failed", keyErr))
 		} else if success {
-			common.LogSuccess(i18n.GetText("redis_ssh_key_success"))
+			common.LogVuln(i18n.GetText("redis_ssh_key_success"))
 		}
 	}
 
@@ -387,7 +387,7 @@ func (p *RedisPlugin) exploit(ctx context.Context, info *common.HostInfo, conn n
 		if success, _, cronErr := p.writeCron(conn, config.Redis.Shell); cronErr != nil {
 			common.LogError(i18n.Tr("redis_cron_failed", cronErr))
 		} else if success {
-			common.LogSuccess(i18n.GetText("redis_cron_success"))
+			common.LogVuln(i18n.GetText("redis_cron_success"))
 		}
 	}
 

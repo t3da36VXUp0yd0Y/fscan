@@ -40,7 +40,7 @@ func (p *SSHPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 	// 如果指定了SSH密钥，优先使用密钥认证
 	if config.Credentials.SSHKeyPath != "" {
 		if result := p.scanWithKey(ctx, info, config, state); result != nil && result.Success {
-			common.LogSuccess(i18n.Tr("ssh_key_auth_success", target, result.Username)) //nolint:govet
+			common.LogVuln(i18n.Tr("ssh_key_auth_success", target, result.Username)) //nolint:govet
 			return result
 		}
 	}
@@ -70,7 +70,7 @@ func (p *SSHPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 
 	// 记录成功
 	if result.Success {
-		common.LogSuccess(i18n.Tr("ssh_pwd_auth_success", target, result.Username, result.Password)) //nolint:govet
+		common.LogVuln(i18n.Tr("ssh_pwd_auth_success", target, result.Username, result.Password)) //nolint:govet
 	}
 
 	return result

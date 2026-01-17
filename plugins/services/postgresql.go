@@ -34,7 +34,7 @@ func (p *PostgreSQLPlugin) Scan(ctx context.Context, info *common.HostInfo, conf
 
 	// 先测试未授权访问
 	if result := p.testUnauthorizedAccess(ctx, info, config, state); result != nil && result.Success {
-		common.LogSuccess(i18n.Tr("postgresql_vuln", target, result.VulInfo))
+		common.LogVuln(i18n.Tr("postgresql_vuln", target, result.VulInfo))
 		return result
 	}
 
@@ -54,7 +54,7 @@ func (p *PostgreSQLPlugin) Scan(ctx context.Context, info *common.HostInfo, conf
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "postgresql", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("postgresql_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("postgresql_credential", target, result.Username, result.Password))
 	}
 
 	return result

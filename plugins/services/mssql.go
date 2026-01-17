@@ -48,7 +48,7 @@ func (p *MSSQLPlugin) Scan(ctx context.Context, info *common.HostInfo, config *c
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "mssql", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("mssql_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("mssql_credential", target, result.Username, result.Password))
 	}
 
 	return result

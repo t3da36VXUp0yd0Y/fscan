@@ -61,7 +61,7 @@ func (p *FTPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 				output.WriteString(fmt.Sprintf("\n   [->] %s", file))
 			}
 		}
-		common.LogSuccess(output.String())
+		common.LogVuln(output.String())
 	}
 
 	return result
@@ -202,7 +202,7 @@ func (p *FTPPlugin) testAnonymousAccess(ctx context.Context, info *common.HostIn
 					output.WriteString(fmt.Sprintf("\n   [->] %s", file))
 				}
 			}
-			common.LogSuccess(output.String())
+			common.LogVuln(output.String())
 
 			return &ScanResult{
 				Type:     plugins.ResultTypeCredential,

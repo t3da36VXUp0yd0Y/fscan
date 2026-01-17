@@ -72,8 +72,11 @@ func LogBase(msg string) { getGlobalLogger().Base(msg) }
 // LogInfo 输出信息日志
 func LogInfo(msg string) { getGlobalLogger().Info(msg) }
 
-// LogSuccess 输出成功日志
+// LogSuccess 输出成功日志（Web指纹等）
 func LogSuccess(result string) { getGlobalLogger().Success(result) }
+
+// LogVuln 输出漏洞/重要发现日志（密码成功、漏洞等）
+func LogVuln(result string) { getGlobalLogger().Vuln(result) }
 
 // LogError 输出错误日志
 func LogError(errMsg string) { getGlobalLogger().Error(errMsg) }

@@ -55,7 +55,7 @@ func (p *SmbPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 	if smbTarget.Protocol == SMBProtocol2 && info.Port == 445 {
 		if checkSMBGhost(info.Host, config.Timeout) {
 			smbTarget.Vulnerable = &SMBVuln{CVE20200796: true}
-			common.LogSuccess(i18n.Tr("smbghost_vuln", target))
+			common.LogVuln(i18n.Tr("smbghost_vuln", target))
 		}
 	}
 
@@ -75,7 +75,7 @@ func (p *SmbPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 		} else {
 			successMsg = fmt.Sprintf("SMB %s 未授权访问 - %s:%s", target, result.Username, result.Password)
 		}
-		common.LogSuccess(successMsg)
+		common.LogVuln(successMsg)
 		return result
 	}
 
@@ -102,7 +102,7 @@ func (p *SmbPlugin) Scan(ctx context.Context, info *common.HostInfo, config *com
 		} else {
 			successMsg = fmt.Sprintf("SMB %s %s:%s", target, result.Username, result.Password)
 		}
-		common.LogSuccess(successMsg)
+		common.LogVuln(successMsg)
 	}
 
 	return result

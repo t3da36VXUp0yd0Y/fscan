@@ -34,7 +34,7 @@ func (p *ElasticsearchPlugin) Scan(ctx context.Context, info *common.HostInfo, c
 
 	// 首先检测未授权访问
 	if p.testCredential(ctx, info, Credential{Username: "", Password: ""}, config, state) {
-		common.LogSuccess(i18n.Tr("elasticsearch_unauth", target))
+		common.LogVuln(i18n.Tr("elasticsearch_unauth", target))
 		return &ScanResult{
 			Success: true,
 			Type:    plugins.ResultTypeVuln,
@@ -55,7 +55,7 @@ func (p *ElasticsearchPlugin) Scan(ctx context.Context, info *common.HostInfo, c
 
 	for _, cred := range credentials {
 		if p.testCredential(ctx, info, cred, config, state) {
-			common.LogSuccess(i18n.Tr("elasticsearch_credential", target, cred.Username, cred.Password))
+			common.LogVuln(i18n.Tr("elasticsearch_credential", target, cred.Username, cred.Password))
 			return &ScanResult{
 				Success:  true,
 				Type:     plugins.ResultTypeCredential,

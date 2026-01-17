@@ -59,7 +59,7 @@ func (p *MySQLPlugin) Scan(ctx context.Context, info *common.HostInfo, config *c
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "mysql", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("mysql_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("mysql_credential", target, result.Username, result.Password))
 	}
 
 	return result

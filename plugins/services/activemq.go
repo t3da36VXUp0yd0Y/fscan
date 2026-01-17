@@ -54,7 +54,7 @@ func (p *ActiveMQPlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "activemq", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("activemq_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("activemq_credential", target, result.Username, result.Password))
 	}
 
 	return result

@@ -25,7 +25,8 @@ const (
 	LevelError           LogLevel = "ERROR"             // 仅显示错误日志
 	LevelBase            LogLevel = "BASE"              // 仅显示基础信息日志
 	LevelInfo            LogLevel = "INFO"              // 仅显示信息日志
-	LevelSuccess         LogLevel = "SUCCESS"           // 仅显示成功日志
+	LevelSuccess         LogLevel = "SUCCESS"           // 仅显示成功日志（Web指纹等）
+	LevelVuln            LogLevel = "VULN"              // 漏洞和重要发现（密码成功、漏洞等）
 	LevelDebug           LogLevel = "DEBUG"             // 仅显示调试日志
 	LevelInfoSuccess     LogLevel = "INFO_SUCCESS"      // 仅显示信息和成功日志
 	LevelBaseInfoSuccess LogLevel = "BASE_INFO_SUCCESS" // 显示基础、信息和成功日志
@@ -57,6 +58,8 @@ const (
 const (
 	// PrefixSuccess 成功日志前缀
 	PrefixSuccess = "[+]"
+	// PrefixVuln 漏洞/重要发现前缀
+	PrefixVuln = "[!]"
 	// PrefixInfo 信息日志前缀
 	PrefixInfo = "[*]"
 	// PrefixError 错误日志前缀
@@ -87,10 +90,11 @@ const (
 // GetDefaultLevelColors 获取默认的日志级别颜色映射
 func GetDefaultLevelColors() map[LogLevel]interface{} {
 	return map[LogLevel]interface{}{
-		LevelError:   color.FgRed,    // 错误日志显示红色（危险/错误）
-		LevelBase:    color.FgYellow, // 基础日志显示黄色（警告/提示）
-		LevelInfo:    color.FgCyan,   // 信息日志显示青色（中性信息）
-		LevelSuccess: color.FgGreen,  // 成功日志显示绿色（成功/通过）
-		LevelDebug:   color.FgWhite,  // 调试日志显示白色（详细信息）
+		LevelError:   color.FgRed,    // 错误日志显示红色
+		LevelVuln:    color.FgRed,    // 漏洞/重要发现显示红色（密码成功、漏洞等）
+		LevelBase:    color.FgWhite,  // 基础日志显示白色（普通信息）
+		LevelInfo:    color.FgWhite,  // 信息日志显示白色（普通信息）
+		LevelSuccess: color.FgGreen,  // 成功日志显示绿色（Web指纹等）
+		LevelDebug:   color.FgWhite,  // 调试日志显示白色
 	}
 }

@@ -52,7 +52,7 @@ func (p *CassandraPlugin) Scan(ctx context.Context, info *common.HostInfo, confi
 	result := TestCredentialsConcurrently(ctx, credentials, authFn, "cassandra", testConfig)
 
 	if result.Success {
-		common.LogSuccess(i18n.Tr("cassandra_credential", target, result.Username, result.Password))
+		common.LogVuln(i18n.Tr("cassandra_credential", target, result.Username, result.Password))
 	}
 
 	return result
@@ -161,7 +161,7 @@ func (p *CassandraPlugin) tryNoAuthConnection(ctx context.Context, info *common.
 	}
 
 	session.Close()
-	common.LogSuccess(i18n.Tr("cassandra_unauth", target))
+	common.LogVuln(i18n.Tr("cassandra_unauth", target))
 	return &ScanResult{
 		Type:    plugins.ResultTypeService,
 		Success: true,
