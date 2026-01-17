@@ -8,9 +8,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/term"
 
 	"github.com/shadow1ng/fscan/common/i18n"
 )
+
+// 默认终端宽度
+const defaultTerminalWidth = 80
 
 /*
 ProgressManager.go - 固定底部进度条管理器
@@ -198,47 +204,35 @@ func (pm *ProgressManager) renderProgress() {
 }
 
 // generateProgressBar 生成进度条字符串
+// 根据终端宽度动态调整内容，确保不超过一行
 func (pm *ProgressManager) generateProgressBar() string {
+	termWidth := getTerminalWidth()
+
+	// 获取发包统计
+	packetInfo := pm.getPacketInfo()
+
 	if pm.total == 0 {
 		spinner := pm.getActivityIndicator()
-		memInfo := pm.getMemoryInfo()
-
-		// 获取TCP包统计（包含原HTTP请求）
-		packetCount := GetGlobalState().GetPacketCount()
-		tcpSuccess := GetGlobalState().GetTCPSuccessPacketCount()
-		tcpFailed := GetGlobalState().GetTCPFailedPacketCount()
-		udpCount := GetGlobalState().GetUDPPacketCount()
-
-		packetInfo := ""
-		if packetCount > 0 {
-			// 构建简化的包统计信息：只显示TCP和UDP
-			details := make([]string, 0, 2)
-			if tcpSuccess > 0 || tcpFailed > 0 {
-				details = append(details, fmt.Sprintf("TCP:%d✓%d✗", tcpSuccess, tcpFailed))
-			}
-			if udpCount > 0 {
-				details = append(details, fmt.Sprintf("UDP:%d", udpCount))
-			}
-
-			if len(details) > 0 {
-				packetInfo = fmt.Sprintf(" 发包:%d[%s]", packetCount, strings.Join(details, ","))
-			} else {
-				packetInfo = fmt.Sprintf(" 发包:%d", packetCount)
-			}
+		base := fmt.Sprintf("%s %s 等待中...", pm.description, spinner)
+		if packetInfo != "" {
+			return base + " " + packetInfo
 		}
-
-		return fmt.Sprintf("%s %s 等待中...%s %s", pm.description, spinner, packetInfo, memInfo)
+		return base
 	}
 
 	percentage := float64(pm.current) / float64(pm.total) * 100
 	elapsed := time.Since(pm.startTime)
 
-	// 获取并发状态
-	concurrencyStatus := GetConcurrencyMonitor().GetConcurrencyStatus()
+	// 计算速度
+	speed := float64(pm.current) / elapsed.Seconds()
+	speedStr := ""
+	if speed > 0 {
+		speedStr = fmt.Sprintf(" %.0f/s", speed)
+	}
 
 	// 计算预估剩余时间
 	var eta string
-	if pm.current > 0 {
+	if pm.current > 0 && pm.current < pm.total {
 		totalTime := elapsed * time.Duration(pm.total) / time.Duration(pm.current)
 		remaining := totalTime - elapsed
 		if remaining > 0 {
@@ -246,84 +240,63 @@ func (pm *ProgressManager) generateProgressBar() string {
 		}
 	}
 
-	// 计算速度
-	speed := float64(pm.current) / elapsed.Seconds()
-	speedStr := ""
-	if speed > 0 {
-		speedStr = fmt.Sprintf(" (%.1f/s)", speed)
+	// 活跃指示器
+	spinner := pm.getActivityIndicator()
+
+	// 计算固定部分的宽度
+	fixedPart := fmt.Sprintf("%s %s %5.1f%% [] (%d/%d)%s%s %s",
+		pm.description, spinner, percentage, pm.current, pm.total, speedStr, eta, packetInfo)
+	fixedWidth := displayWidth(fixedPart)
+
+	// 计算进度条槽位可用宽度（预留2字符余量）
+	barWidth := termWidth - fixedWidth - 2
+	if barWidth < 10 {
+		barWidth = 10 // 最小进度条宽度
+	}
+	if barWidth > 30 {
+		barWidth = 30 // 最大进度条宽度
 	}
 
 	// 生成进度条
-	barWidth := 30
 	filled := int(percentage * float64(barWidth) / 100)
-	bar := ""
-
-	if GetFlagVars().NoColor {
-		// 无颜色版本
-		bar = "[" +
-			fmt.Sprintf("%s%s",
-				string(make([]rune, filled)),
-				string(make([]rune, barWidth-filled))) +
-			"]"
-		for i := 0; i < filled; i++ {
-			bar = bar[:i+1] + "=" + bar[i+2:]
-		}
-		for i := filled; i < barWidth; i++ {
-			bar = bar[:i+1] + "-" + bar[i+2:]
-		}
-	} else {
-		// 彩色版本
-		bar = "|"
-		for i := 0; i < barWidth; i++ {
-			if i < filled {
-				bar += "#"
-			} else {
-				bar += "."
-			}
-		}
-		bar += "|"
+	if filled > barWidth {
+		filled = barWidth
 	}
 
-	// 生成活跃指示器
-	spinner := pm.getActivityIndicator()
+	bar := "[" + strings.Repeat("=", filled)
+	if filled < barWidth {
+		bar += ">"
+		bar += strings.Repeat("-", barWidth-filled-1)
+	}
+	bar += "]"
 
-	// 获取TCP包统计（包含原HTTP请求）
+	// 构建最终进度条
+	result := fmt.Sprintf("%s %s %5.1f%% %s (%d/%d)%s%s",
+		pm.description, spinner, percentage, bar, pm.current, pm.total, speedStr, eta)
+
+	if packetInfo != "" {
+		result += " " + packetInfo
+	}
+
+	return result
+}
+
+// getPacketInfo 获取发包统计信息（简化版）
+func (pm *ProgressManager) getPacketInfo() string {
 	packetCount := GetGlobalState().GetPacketCount()
+	if packetCount == 0 {
+		return ""
+	}
+
 	tcpSuccess := GetGlobalState().GetTCPSuccessPacketCount()
 	tcpFailed := GetGlobalState().GetTCPFailedPacketCount()
-	udpCount := GetGlobalState().GetUDPPacketCount()
 
-	packetInfo := ""
-	if packetCount > 0 {
-		// 构建简化的包统计信息：只显示TCP和UDP
-		details := make([]string, 0, 2)
-		if tcpSuccess > 0 || tcpFailed > 0 {
-			details = append(details, fmt.Sprintf("TCP:%d✓%d✗", tcpSuccess, tcpFailed))
-		}
-		if udpCount > 0 {
-			details = append(details, fmt.Sprintf("UDP:%d", udpCount))
-		}
-
-		if len(details) > 0 {
-			packetInfo = fmt.Sprintf(" 发包:%d[%s]", packetCount, strings.Join(details, ","))
-		} else {
-			packetInfo = fmt.Sprintf(" 发包:%d", packetCount)
-		}
+	// 简化格式：TCP:成功/失败
+	if tcpSuccess > 0 || tcpFailed > 0 {
+		return fmt.Sprintf("TCP:%d/%d", tcpSuccess, tcpFailed)
 	}
 
-	// 构建基础进度条
-	baseProgress := fmt.Sprintf("%s %s %6.1f%% %s (%d/%d)%s%s%s",
-		pm.description, spinner, percentage, bar, pm.current, pm.total, speedStr, eta, packetInfo)
-
-	// 添加内存信息
-	memInfo := pm.getMemoryInfo()
-
-	// 添加并发状态
-	if concurrencyStatus != "" {
-		return fmt.Sprintf("%s [%s] %s", baseProgress, concurrencyStatus, memInfo)
-	}
-
-	return fmt.Sprintf("%s %s", baseProgress, memInfo)
+	return fmt.Sprintf("Pkt:%d", packetCount)
 }
 
 // showCompletionInfo 显示完成信息
@@ -359,10 +332,91 @@ func (pm *ProgressManager) IsActive() bool {
 
 // getTerminalHeight 获取终端高度
 func getTerminalHeight() int {
-	// 对于固定底部进度条，我们暂时禁用终端高度检测
-	// 因为在不同终端环境中可能会有问题
-	// 改为使用相对定位方式
-	return 0 // 返回0表示使用简化模式
+	return 0
+}
+
+// getTerminalWidth 获取终端宽度
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		return defaultTerminalWidth
+	}
+	return width
+}
+
+// displayWidth 计算字符串的显示宽度（中文字符占2列）
+func displayWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		if r >= 0x4E00 && r <= 0x9FFF || // CJK统一汉字
+			r >= 0x3000 && r <= 0x303F || // CJK标点
+			r >= 0xFF00 && r <= 0xFFEF { // 全角字符
+			width += 2
+		} else if r >= 0x2600 && r <= 0x27BF || // 杂项符号
+			r >= 0x2700 && r <= 0x27BF { // 装饰符号
+			width += 2
+		} else {
+			width += 1
+		}
+	}
+	return width
+}
+
+// truncateToWidth 截断字符串到指定显示宽度
+func truncateToWidth(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	currentWidth := 0
+	result := strings.Builder{}
+
+	for _, r := range s {
+		var charWidth int
+		if r >= 0x4E00 && r <= 0x9FFF ||
+			r >= 0x3000 && r <= 0x303F ||
+			r >= 0xFF00 && r <= 0xFFEF ||
+			r >= 0x2600 && r <= 0x27BF ||
+			r >= 0x2700 && r <= 0x27BF {
+			charWidth = 2
+		} else {
+			charWidth = 1
+		}
+
+		if currentWidth+charWidth > maxWidth {
+			break
+		}
+		result.WriteRune(r)
+		currentWidth += charWidth
+	}
+
+	return result.String()
+}
+
+// stripAnsiCodes 移除 ANSI 转义码，用于计算实际显示宽度
+func stripAnsiCodes(s string) string {
+	result := strings.Builder{}
+	inEscape := false
+
+	for i := 0; i < len(s); {
+		if s[i] == '\033' && i+1 < len(s) && s[i+1] == '[' {
+			inEscape = true
+			i += 2
+			continue
+		}
+		if inEscape {
+			if (s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z') {
+				inEscape = false
+			}
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		result.WriteRune(r)
+		i += size
+	}
+
+	return result.String()
 }
 
 // formatDuration 格式化时间间隔
@@ -460,11 +514,28 @@ func (pm *ProgressManager) renderProgressUnsafe() {
 	}
 	pm.lastRenderedPercent = currentPercent
 
+	// 获取终端宽度
+	termWidth := getTerminalWidth()
+
 	// 生成进度条内容
 	progressBar := pm.generateProgressBar()
 
-	// 移动到行首（Windows 已通过 progress_manager_win.go 启用 ANSI 支持）
-	fmt.Print("\r")
+	// 计算实际显示宽度（去除 ANSI 码后）
+	plainBar := stripAnsiCodes(progressBar)
+	actualWidth := displayWidth(plainBar)
+
+	// 如果超过终端宽度，截断内容
+	// 预留 1 字符防止边界问题
+	maxWidth := termWidth - 1
+	if actualWidth > maxWidth {
+		// 截断纯文本部分
+		progressBar = truncateToWidth(plainBar, maxWidth)
+	}
+
+	// 清除当前行并移动到行首
+	// 使用空格覆盖旧内容，确保不留残留
+	clearStr := "\r" + strings.Repeat(" ", termWidth-1) + "\r"
+	fmt.Print(clearStr)
 
 	// 输出进度条（带颜色，如果启用）
 	if GetFlagVars().NoColor {

@@ -1,6 +1,6 @@
 module github.com/shadow1ng/fscan
 
-go 1.20
+go 1.24.0
 
 require (
 	github.com/IBM/sarama v1.43.3
@@ -28,7 +28,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.31.0
 	golang.org/x/net v0.32.0
-	golang.org/x/sys v0.28.0
+	golang.org/x/sys v0.40.0
 	golang.org/x/text v0.21.0
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
 	google.golang.org/protobuf v1.28.1
@@ -76,6 +76,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/term v0.39.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
 
