@@ -60,7 +60,7 @@ const (
 	LogLevelBaseInfoSuccess = "base,info,success"
 )
 
-const version = "2.1.0"
+const version = "2.1.1"
 
 // 运行时数据已迁移到Config对象中，使用GetGlobalConfig()访问
 
