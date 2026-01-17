@@ -148,6 +148,11 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 		exclude[p] = struct{}{}
 	}
 
+	// 检查代理可靠性，如果存在全回显问题则警告
+	if common.IsProxyEnabled() && !common.IsProxyReliable() {
+		common.LogBase("[!] 检测到代理存在全回显问题，端口扫描结果可能不准确")
+	}
+
 	// 创建流式迭代器（O(1) 内存，端口喷洒策略）
 	iter := NewSocketIterator(hosts, portList, exclude)
 	totalTasks := iter.Total()
@@ -373,6 +378,12 @@ func verifyProxyConnection(conn net.Conn, addr string) bool {
 	// 如果没有使用代理，跳过验证
 	if !common.IsProxyEnabled() {
 		return true
+	}
+
+	// 如果代理不可靠（存在全回显问题），直接返回 false
+	if !common.IsProxyReliable() {
+		common.LogDebug(fmt.Sprintf("代理不可靠，跳过端口 %s", addr))
+		return false
 	}
 
 	// 设置短超时进行连接验证（100ms）

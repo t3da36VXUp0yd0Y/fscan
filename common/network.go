@@ -153,6 +153,11 @@ func IsProxyEnabled() bool {
 	return proxy.IsProxyEnabled()
 }
 
+// IsProxyReliable 检查代理是否可靠（不存在全回显问题）
+func IsProxyReliable() bool {
+	return proxy.IsProxyReliable()
+}
+
 // SafeHTTPDo 带发包控制的HTTP请求
 func SafeHTTPDo(client *http.Client, req *http.Request) (*http.Response, error) {
 	// 检查发包限制

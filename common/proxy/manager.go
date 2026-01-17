@@ -33,7 +33,7 @@ func NewProxyManager(config *ProxyConfig) ProxyManager {
 	// 自动配置代理行为
 	AutoConfigureProxy(config)
 
-	return &manager{
+	m := &manager{
 		config: config,
 		stats: &ProxyStats{
 			ProxyType:    config.Type.String(),
@@ -42,6 +42,19 @@ func NewProxyManager(config *ProxyConfig) ProxyManager {
 		dialerCache: make(map[string]Dialer),
 		cacheExpiry: time.Now().Add(DefaultCacheExpiry),
 	}
+
+	// 对 SOCKS5 代理进行行为探测，检测是否存在"全回显"问题
+	// 只探测一次，避免重复输出警告
+	if config.Type == ProxyTypeSOCKS5 && !IsProxyProbed() {
+		SetProxyProbed(true)
+		dialer, err := m.createSOCKS5Dialer()
+		if err == nil {
+			reliable := ProbeProxyBehavior(dialer, config.Timeout)
+			SetProxyReliable(reliable)
+		}
+	}
+
+	return m
 }
 
 // GetDialer 获取普通拨号器
@@ -349,4 +362,26 @@ func (s *socks5Dialer) updateAverageConnectTime(duration time.Duration) {
 	} else {
 		s.stats.AverageConnectTime = (s.stats.AverageConnectTime + duration) / 2
 	}
+}
+
+// ProbeProxyBehavior 探测代理是否存在"全回显"问题
+// 通过连接一个几乎肯定不可达的地址来判断代理行为
+// 返回 true 表示代理可靠，false 表示代理存在全回显问题
+func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
+	// 使用 RFC 5737 保留的测试 IP (TEST-NET-1) + 高端口
+	// 192.0.2.1 是文档专用地址，保证不会路由到真实主机
+	testAddr := "192.0.2.1:65533"
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	conn, err := dialer.DialContext(ctx, "tcp", testAddr)
+	if err != nil {
+		// 连接失败 = 正常代理行为，代理可靠
+		return true
+	}
+
+	// 连接"成功" = 代理存在全回显问题，不可靠
+	_ = conn.Close()
+	return false
 }
