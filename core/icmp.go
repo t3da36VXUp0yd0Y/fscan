@@ -21,6 +21,22 @@ import (
 // pingForbiddenChars 命令注入防护 - 禁止的字符
 var pingForbiddenChars = []string{";", "&", "|", "`", "$", "\\", "'", "%", "\"", "\n"}
 
+// pingErrorKeywords ping 失败的关键词（跨平台）
+var pingErrorKeywords = []string{
+	// Windows
+	"TTL expired",
+	"Destination host unreachable",
+	"Destination net unreachable",
+	"Request timed out",
+	"General failure",
+	"transmit failed",
+	// Linux/macOS
+	"Time to live exceeded",
+	"100% packet loss",
+	"Network is unreachable",
+	"No route to host",
+}
+
 // CheckLive 检测主机存活状态
 func CheckLive(hostslist []string, Ping bool, config *common.Config, state *common.State) []string {
 	// 创建局部WaitGroup
@@ -391,6 +407,17 @@ func RunPing(hostslist []string, chanHosts chan string, livewg *sync.WaitGroup) 
 	wg.Wait()
 }
 
+// containsPingError 检查 ping 输出是否包含错误关键词
+func containsPingError(output string) bool {
+	outputLower := strings.ToLower(output)
+	for _, keyword := range pingErrorKeywords {
+		if strings.Contains(outputLower, strings.ToLower(keyword)) {
+			return true
+		}
+	}
+	return false
+}
+
 // ExecCommandPing 执行系统Ping命令检测主机存活
 func ExecCommandPing(ip string) bool {
 	// 过滤黑名单字符（命令注入防护）
@@ -426,7 +453,7 @@ func ExecCommandPing(ip string) bool {
 
 	// 分析输出结果
 	output := outinfo.String()
-	return strings.Contains(output, "true") && strings.Count(output, ip) > 2
+	return strings.Contains(output, "true") && strings.Count(output, ip) > 2 && !containsPingError(output)
 }
 
 // makemsg 构造ICMP echo请求消息
