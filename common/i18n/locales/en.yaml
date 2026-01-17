@@ -155,8 +155,6 @@ scan_vulnerability_start:
   other: "Starting vulnerability scan"
 scan_no_service_plugins:
   other: "No available service plugins found"
-scan_snmp_udp_ports_added:
-  other: "Detected SNMP port 161, adding UDP ports to scan targets"
 
 # ========================= Scan Strategy Messages =========================
 scan_strategy_alive_name:

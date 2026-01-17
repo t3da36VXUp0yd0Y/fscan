@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -61,8 +60,6 @@ func (s *AliveScanStrategy) Execute(config *common.Config, state *common.State, 
 		return
 	}
 
-	// 输出存活探测开始信息
-	common.LogBase(i18n.GetText("scan_alive_start"))
 
 	// 执行存活探测
 	s.performAliveScan(info, config, state)
@@ -91,12 +88,6 @@ func (s *AliveScanStrategy) performAliveScan(info common.HostInfo, config *commo
 	s.stats.AliveHosts = 0
 	s.stats.DeadHosts = 0
 
-	// 显示扫描信息
-	if len(hosts) == 1 {
-		common.LogBase(i18n.Tr("alive_scan_start_single", hosts[0]))
-	} else {
-		common.LogBase(i18n.Tr("alive_scan_start_multi", len(hosts), hosts[0]))
-	}
 
 	// 执行存活检测
 	aliveList := CheckLive(hosts, false, config, state) // 使用ICMP探测
@@ -112,33 +103,12 @@ func (s *AliveScanStrategy) performAliveScan(info common.HostInfo, config *commo
 	}
 }
 
-// outputStats 输出详细统计信息
+// outputStats 输出统计信息（精简版）
 func (s *AliveScanStrategy) outputStats() {
-	// 输出分隔线
-	common.LogBase("=" + strings.Repeat("=", 60))
-
-	// 输出扫描结果摘要
-	common.LogBase(i18n.GetText("scan_alive_summary_title"))
-
-	// 基础统计
-	common.LogBase(i18n.Tr("alive_total_hosts", s.stats.TotalHosts))
-	common.LogBase(i18n.Tr("alive_hosts_count", s.stats.AliveHosts))
-	common.LogBase(i18n.Tr("alive_dead_hosts", s.stats.DeadHosts))
-	common.LogBase(i18n.Tr("alive_success_rate", fmt.Sprintf("%.2f%%", s.stats.SuccessRate)))
-	common.LogBase(i18n.Tr("alive_scan_duration", s.stats.ScanDuration.Round(time.Millisecond)))
-
-	// 如果有存活主机，显示详细列表
-	if s.stats.AliveHosts > 0 {
-		common.LogBase("")
-		common.LogBase(i18n.GetText("scan_alive_hosts_list"))
-
-		for i, host := range s.stats.AliveHostList {
-			common.LogSuccess(i18n.Tr("alive_host_item", i+1, host))
-		}
+	// 只输出存活主机列表，不输出冗余统计
+	for _, host := range s.stats.AliveHostList {
+		common.LogSuccess(fmt.Sprintf("alive %s", host))
 	}
-
-	// 输出分隔线
-	common.LogBase("=" + strings.Repeat("=", 60))
 }
 
 // PrepareTargets 存活探测不需要准备扫描目标

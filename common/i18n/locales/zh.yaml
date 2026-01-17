@@ -155,8 +155,6 @@ scan_vulnerability_start:
   other: "开始漏洞扫描"
 scan_no_service_plugins:
   other: "未找到可用的服务插件"
-scan_snmp_udp_ports_added:
-  other: "检测到SNMP端口161，添加UDP端口到扫描目标"
 
 # ========================= 扫描策略消息 =========================
 scan_strategy_alive_name:

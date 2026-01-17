@@ -180,16 +180,10 @@ func (b *BaseScanStrategy) LogPluginInfo(config *common.Config) {
 		prefix = i18n.GetText("concurrency_plugin")
 	}
 
-	if len(allPlugins) > 0 {
-		pluginStr := formatPluginList(allPlugins)
-		if isCustomMode {
-			common.LogBase(i18n.Tr("plugins_custom_specified", prefix, pluginStr))
-		} else {
-			common.LogBase(i18n.Tr("plugins_info", prefix, pluginStr))
-		}
-	} else {
-		common.LogBase(i18n.Tr("plugins_none", prefix))
-	}
+	// 插件信息不再输出，减少干扰
+	_ = allPlugins
+	_ = isCustomMode
+	_ = prefix
 }
 
 // formatPluginList 格式化插件列表（超过5个时精简显示）
@@ -226,16 +220,10 @@ func (b *BaseScanStrategy) LogPluginInfoWithPort(targetHost string, targetPort i
 		}
 	}
 
-	if len(applicablePlugins) > 0 {
-		pluginStr := formatPluginList(applicablePlugins)
-		if isCustomMode {
-			common.LogBase(i18n.Tr("plugins_custom_specified", prefix, pluginStr))
-		} else {
-			common.LogBase(i18n.Tr("plugins_info", prefix, pluginStr))
-		}
-	} else {
-		common.LogBase(i18n.Tr("plugins_none", prefix))
-	}
+	// 插件信息不再输出，减少干扰
+	_ = applicablePlugins
+	_ = isCustomMode
+	_ = prefix
 }
 
 // ValidateConfiguration 验证扫描配置

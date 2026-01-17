@@ -264,13 +264,6 @@ func (s *ServiceScanStrategy) discoverAlivePorts(hosts []string, config *common.
 		common.LogBase(i18n.Tr("alive_ports_count", len(alivePorts)))
 	}
 
-	// UDP端口特殊处理（当前仅支持SNMP的161端口）
-	udpPorts := s.handleUDPPorts(hosts)
-	if len(udpPorts) > 0 {
-		alivePorts = append(alivePorts, udpPorts...)
-		common.LogBase(i18n.Tr("alive_ports_count", len(alivePorts)))
-	}
-
 	return alivePorts
 }
 
@@ -317,29 +310,3 @@ func (s *ServiceScanStrategy) convertToTargetInfos(ports []string, baseInfo comm
 	return infos
 }
 
-// handleUDPPorts 处理UDP端口的特殊逻辑
-func (s *ServiceScanStrategy) handleUDPPorts(hosts []string) []string {
-	var udpPorts []string
-
-	// 检查是否包含SNMP端口161
-	portList := parsers.ParsePort(common.GetFlagVars().Ports)
-	hasPort161 := false
-	for _, port := range portList {
-		if port == 161 {
-			hasPort161 = true
-			break
-		}
-	}
-
-	// 如果端口列表包含161，则为每个主机添加UDP 161端口
-	if hasPort161 {
-		for _, host := range hosts {
-			udpPorts = append(udpPorts, fmt.Sprintf("%s:161", host))
-		}
-		if len(udpPorts) > 0 {
-			common.LogBase(i18n.GetText("scan_snmp_udp_ports_added"))
-		}
-	}
-
-	return udpPorts
-}

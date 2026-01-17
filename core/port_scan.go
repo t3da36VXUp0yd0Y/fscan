@@ -155,11 +155,6 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 	// 使用传入的配置
 	threadNum := config.ThreadNum
 
-	// 估算并显示扫描时间
-	if totalTasks > 0 {
-		estimatedTime := estimateScanTime(totalTasks, threadNum, timeout)
-		common.LogBase(i18n.Tr("port_scan_start", totalTasks, estimatedTime, estimatedTime/60))
-	}
 
 	// 初始化端口扫描进度条
 	if totalTasks > 0 && config.Output.ShowProgress {
