@@ -396,6 +396,8 @@ start_scan:
 # Format: {service}_{type} - type: credential/unauth/service/vuln
 ldap_credential:
   other: "LDAP {{.Arg1}} {{.Arg2}}:{{.Arg3}}"
+ldap_hash_credential:
+  other: "LDAP {{.Arg1}} {{.Arg2}}\\{{.Arg3}} [Hash:{{.Arg4}}]"
 ldap_service:
   other: "LDAP {{.Arg1}} {{.Arg2}}"
 kafka_credential:

@@ -30,6 +30,14 @@ func (p *LDAPPlugin) Scan(ctx context.Context, info *common.HostInfo, config *co
 
 	target := info.Target()
 
+	// Hash 认证优先：检查是否配置了 Hash 和 Domain
+	if len(config.Credentials.HashValues) > 0 && config.Credentials.Domain != "" {
+		result := p.tryHashAuth(ctx, info, config, state)
+		if result != nil && result.Success {
+			return result
+		}
+	}
+
 	credentials := GenerateCredentials("ldap", config)
 	if len(credentials) == 0 {
 		return &ScanResult{
@@ -106,6 +114,81 @@ type ldapConnWrapper struct {
 
 func (w *ldapConnWrapper) Close() error {
 	return w.Conn.Close()
+}
+
+// tryHashAuth 尝试 NTLM Hash 认证
+func (p *LDAPPlugin) tryHashAuth(ctx context.Context, info *common.HostInfo, config *common.Config, state *common.State) *ScanResult {
+	target := info.Target()
+	domain := config.Credentials.Domain
+	users := config.Credentials.Userdict["ldap"]
+
+	// 如果没有用户名，使用默认用户名
+	if len(users) == 0 {
+		users = []string{"administrator", "admin"}
+	}
+
+	for _, user := range users {
+		for _, hash := range config.Credentials.HashValues {
+			select {
+			case <-ctx.Done():
+				return &ScanResult{
+					Success: false,
+					Service: "ldap",
+					Error:   ctx.Err(),
+				}
+			default:
+			}
+
+			result := p.doNTLMHashAuth(ctx, info, domain, user, hash, config, state)
+			if result.Success {
+				// 截断 hash 用于显示
+				displayHash := hash
+				if len(hash) > 16 {
+					displayHash = hash[:16] + "..."
+				}
+				common.LogVuln(i18n.Tr("ldap_hash_credential", target, domain, user, displayHash))
+				return &ScanResult{
+					Type:     plugins.ResultTypeVuln,
+					Success:  true,
+					Service:  "ldap",
+					Username: user,
+					Password: hash, // 使用 Password 字段存储 hash
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// doNTLMHashAuth 执行单次 NTLM Hash 认证
+func (p *LDAPPlugin) doNTLMHashAuth(ctx context.Context, info *common.HostInfo, domain, username, hash string, config *common.Config, state *common.State) *AuthResult {
+	conn, err := p.connectLDAP(ctx, info, config)
+	if err != nil {
+		state.IncrementTCPFailedPacketCount()
+		return &AuthResult{
+			Success:   false,
+			ErrorType: classifyLDAPErrorType(err),
+			Error:     err,
+		}
+	}
+	state.IncrementTCPSuccessPacketCount()
+
+	if err := conn.NTLMBindWithHash(domain, username, hash); err == nil {
+		return &AuthResult{
+			Success:   true,
+			Conn:      &ldapConnWrapper{conn},
+			ErrorType: ErrorTypeUnknown,
+			Error:     nil,
+		}
+	}
+
+	_ = conn.Close()
+	return &AuthResult{
+		Success:   false,
+		ErrorType: ErrorTypeAuth,
+		Error:     fmt.Errorf("NTLM hash authentication failed"),
+	}
 }
 
 // connectLDAP 连接LDAP服务器
