@@ -266,9 +266,9 @@ host_alive:
 proxy_mode_disable_icmp:
   other: "检测到代理模式，自动禁用ICMP扫描"
 segment_16_alive:
-  other: "/16网段 {{.Arg1}} 存活: {{.Arg2}}"
+  other: "{{.Arg1}}.0.0/16 网段存活: {{.Arg2}}"
 segment_24_alive:
-  other: "/24网段 {{.Arg1}} 存活: {{.Arg2}}"
+  other: "{{.Arg1}}.0/24 网段存活: {{.Arg2}}"
 
 # ========================= 存活扫描统计消息 =========================
 parse_target_failed:

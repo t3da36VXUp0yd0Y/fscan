@@ -261,7 +261,6 @@ func (s *ServiceScanStrategy) discoverAlivePorts(hosts []string, config *common.
 	// 根据扫描模式选择端口扫描方式
 	if len(hosts) > 0 {
 		alivePorts = EnhancedPortScan(hosts, config.Target.Ports, int64(config.Timeout.Seconds()), config, state)
-		common.LogBase(i18n.Tr("alive_ports_count", len(alivePorts)))
 	}
 
 	return alivePorts

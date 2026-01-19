@@ -60,10 +60,12 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	if server != "" {
 		msg += fmt.Sprintf(" %s", server)
 	}
+	// 基础信息用白色输出
+	common.LogInfo(msg)
+	// 指纹信息单独用绿色输出
 	if len(fingerprints) > 0 {
-		msg += fmt.Sprintf(" %v", fingerprints)
+		common.LogSuccess(fmt.Sprintf("WebFinger %s %v", target, fingerprints))
 	}
-	common.LogSuccess(msg)
 
 	return &WebScanResult{
 		Type:         plugins.ResultTypeWeb,
