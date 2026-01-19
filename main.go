@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/shadow1ng/fscan/common"
+	"github.com/shadow1ng/fscan/common/debug"
 	"github.com/shadow1ng/fscan/common/i18n"
 	"github.com/shadow1ng/fscan/core"
 	"github.com/shadow1ng/fscan/web"
@@ -18,8 +19,8 @@ import (
 
 func main() {
 	// 启动 pprof（仅调试版本）
-	startPprof()
-	defer stopPprof() // 程序退出时保存性能分析数据
+	debug.Start()
+	defer debug.Stop()
 
 	// 解析命令行参数
 	var info common.HostInfo

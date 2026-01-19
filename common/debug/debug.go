@@ -1,7 +1,7 @@
 //go:build debug
 // +build debug
 
-package main
+package debug
 
 import (
 	"fmt"
@@ -13,19 +13,16 @@ import (
 
 var (
 	cpuProfile   *os.File
-	memProfile   *os.File
 	traceFile    *os.File
-	profilesPath = "./profiles" // 性能分析文件保存目录
+	profilesPath = "./profiles"
 )
 
-func startPprof() {
-	// 创建 profiles 目录
+func Start() {
 	if err := os.MkdirAll(profilesPath, 0755); err != nil {
 		fmt.Printf("[DEBUG] 创建 profiles 目录失败: %v\n", err)
 		return
 	}
 
-	// 启动 CPU profiling
 	var err error
 	cpuProfile, err = os.Create(profilesPath + "/cpu.prof")
 	if err != nil {
@@ -40,7 +37,6 @@ func startPprof() {
 		}
 	}
 
-	// 启动 trace
 	traceFile, err = os.Create(profilesPath + "/trace.out")
 	if err != nil {
 		fmt.Printf("[DEBUG] 创建 trace 文件失败: %v\n", err)
@@ -57,27 +53,24 @@ func startPprof() {
 	fmt.Printf("[DEBUG] 性能分析已启动，程序结束时自动保存到 %s/\n", profilesPath)
 }
 
-func stopPprof() {
-	// 停止 CPU profiling
+func Stop() {
 	if cpuProfile != nil {
 		pprof.StopCPUProfile()
 		cpuProfile.Close()
 		fmt.Printf("[DEBUG] CPU profile 已保存\n")
 	}
 
-	// 停止 trace
 	if traceFile != nil {
 		trace.Stop()
 		traceFile.Close()
 		fmt.Printf("[DEBUG] Trace 已保存\n")
 	}
 
-	// 写入内存 profile
 	memProfile, err := os.Create(profilesPath + "/mem.prof")
 	if err != nil {
 		fmt.Printf("[DEBUG] 创建内存 profile 失败: %v\n", err)
 	} else {
-		runtime.GC() // 先执行 GC
+		runtime.GC()
 		if err := pprof.WriteHeapProfile(memProfile); err != nil {
 			fmt.Printf("[DEBUG] 写入内存 profile 失败: %v\n", err)
 		} else {
@@ -86,7 +79,6 @@ func stopPprof() {
 		memProfile.Close()
 	}
 
-	// 写入 goroutine profile
 	goroutineProfile, err := os.Create(profilesPath + "/goroutine.prof")
 	if err != nil {
 		fmt.Printf("[DEBUG] 创建 goroutine profile 失败: %v\n", err)
