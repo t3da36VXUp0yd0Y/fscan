@@ -313,8 +313,9 @@ func (tp *TargetParser) parseURLs(input *TargetInput) ([]string, []error, []stri
 		for _, rawURL := range urlList {
 			rawURL = strings.TrimSpace(rawURL)
 			if rawURL != "" {
-				if valid, err := tp.validateURL(rawURL); valid {
-					urls = append(urls, rawURL)
+				normalizedURL := tp.normalizeURL(rawURL)
+				if valid, err := tp.validateURL(normalizedURL); valid {
+					urls = append(urls, normalizedURL)
 				} else {
 					warnings = append(warnings, fmt.Sprintf("无效URL: %s - %s", rawURL, err.Error()))
 				}
@@ -329,8 +330,9 @@ func (tp *TargetParser) parseURLs(input *TargetInput) ([]string, []error, []stri
 			errors = append(errors, NewParseError(ErrorTypeFileError, "读取URL文件失败", input.URLsFile, 0, err))
 		} else {
 			for i, line := range fileResult.Lines {
-				if valid, err := tp.validateURL(line); valid {
-					urls = append(urls, line)
+				normalizedURL := tp.normalizeURL(line)
+				if valid, err := tp.validateURL(normalizedURL); valid {
+					urls = append(urls, normalizedURL)
 				} else {
 					warnings = append(warnings, fmt.Sprintf("URL文件第%d行无效: %s", i+1, err.Error()))
 				}
@@ -342,6 +344,19 @@ func (tp *TargetParser) parseURLs(input *TargetInput) ([]string, []error, []stri
 	urls = tp.removeDuplicateStrings(urls)
 
 	return urls, errors, warnings
+}
+
+// normalizeURL 规范化URL，自动补全协议头
+func (tp *TargetParser) normalizeURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return rawURL
+	}
+	// 如果没有协议头，自动添加 http://
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		return "http://" + rawURL
+	}
+	return rawURL
 }
 
 // parsePorts 解析端口
