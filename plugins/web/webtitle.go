@@ -40,9 +40,7 @@ func NewWebTitlePlugin() *WebTitlePlugin {
 
 // Scan 执行WebTitle扫描
 func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config *common.Config, state *common.State) *WebScanResult {
-	target := info.Target()
-
-	title, status, server, fingerprints, err := p.getWebTitle(ctx, info, config)
+	title, status, server, fingerprints, url, err := p.getWebTitle(ctx, info, config)
 	if err != nil {
 		return &WebScanResult{
 			Success: false,
@@ -50,7 +48,7 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 		}
 	}
 
-	msg := fmt.Sprintf("WebTitle %s", target)
+	msg := fmt.Sprintf("WebTitle %s", url)
 	if title != "" {
 		msg += fmt.Sprintf(" [%s]", title)
 	}
@@ -64,7 +62,7 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	common.LogInfo(msg)
 	// 指纹信息单独用绿色输出
 	if len(fingerprints) > 0 {
-		common.LogSuccess(fmt.Sprintf("WebFinger %s %v", target, fingerprints))
+		common.LogSuccess(fmt.Sprintf("WebFinger %s %v", url, fingerprints))
 	}
 
 	return &WebScanResult{
@@ -77,14 +75,22 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	}
 }
 
-func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo, config *common.Config) (string, int, string, []string, error) {
+func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo, config *common.Config) (string, int, string, []string, string, error) {
 	// 智能协议检测
 	protocol := p.detectProtocol(info, config)
 	baseURL := fmt.Sprintf("%s://%s:%d", protocol, info.Host, info.Port)
 
+	// 构建显示用URL（隐藏标准端口）
+	var displayURL string
+	if (protocol == "https" && info.Port == 443) || (protocol == "http" && info.Port == 80) {
+		displayURL = fmt.Sprintf("%s://%s", protocol, info.Host)
+	} else {
+		displayURL = baseURL
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
 	if err != nil {
-		return "", 0, "", nil, err
+		return "", 0, "", nil, displayURL, err
 	}
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -92,13 +98,13 @@ func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo,
 	// 先使用不跟随重定向的Client获取原始响应
 	resp, err := lib.ClientNoRedirect.Do(req)
 	if err != nil {
-		return "", 0, "", nil, err
+		return "", 0, "", nil, displayURL, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if len(body) <= 0 && err != nil {
-		return "", resp.StatusCode, resp.Header.Get("Server"), nil, err
+		return "", resp.StatusCode, resp.Header.Get("Server"), nil, displayURL, err
 	}
 
 	// 收集用于指纹识别的响应数据
@@ -151,7 +157,7 @@ func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo,
 	// 执行指纹识别（合并原始响应和跳转后响应的指纹）
 	fingerprints := p.identifyFingerprintsMulti(info, baseURL, checkDataList, config)
 
-	return title, statusCode, server, fingerprints, nil
+	return title, statusCode, server, fingerprints, displayURL, nil
 }
 
 // resolveRedirectURL 解析重定向URL，处理相对路径
@@ -241,26 +247,21 @@ func (p *WebTitlePlugin) detectProtocol(info *common.HostInfo, config *common.Co
 			return protocol
 		}
 
-		// 第二优先级：基于服务名称特征判断
+		// 第二优先级：基于服务名称特征判断（仅限服务识别阶段确定的https/ssl/tls）
+		// 注意：普通的"http"服务名不直接返回，因为可能是-u模式默认添加的协议
 		serviceName := strings.ToLower(serviceInfo.Name)
-		var protocol string
 		if common.ContainsAny(serviceName, "https", "ssl", "tls") {
-			protocol = "https"
-		} else if strings.Contains(serviceName, "http") {
-			protocol = "http"
-		}
-
-		if protocol != "" {
-			// 缓存协议信息到Extras（避免重复判断）
+			// 缓存协议信息到Extras
 			if serviceInfo.Extras == nil {
 				serviceInfo.Extras = make(map[string]string)
 			}
-			serviceInfo.Extras["protocol"] = protocol
-			return protocol
+			serviceInfo.Extras["protocol"] = "https"
+			return "https"
 		}
 	}
 
 	// 第三优先级：主动协议检测（TLS握手）
+	// 对于-u模式或服务名为普通"http"的情况，进行主动检测确认
 	detected := core.DetectHTTPScheme(host, port, config)
 	if detected != "" {
 		// 缓存检测结果（避免重复检测）
