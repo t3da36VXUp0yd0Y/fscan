@@ -424,5 +424,8 @@ func (s *WebScanStrategy) createTargetFromURL(baseInfo common.HostInfo, urlStr s
 		}
 	}
 
+	// 标记为Web服务，确保Web插件能识别此目标
+	MarkAsWebService(urlInfo.Host, urlInfo.Port, &ServiceInfo{Name: "http"})
+
 	return &urlInfo
 }
