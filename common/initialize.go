@@ -34,7 +34,20 @@ func Initialize(info *HostInfo) (*InitResult, error) {
 
 	// 从 FlagVars 构建 Config（新架构）
 	cfg := BuildConfigFromFlags(flagVars)
+
+	// 关键修复：获取 Parse 阶段设置的全局状态数据
+	// Parse 通过 updateGlobalVariables 将 URLs 和 HostPorts 设置到了全局状态
+	// 需要保留这些数据到新状态中
+	oldGlobalState := GetGlobalState()
 	state := NewState()
+
+	// 迁移 Parse 阶段设置的目标数据
+	if urls := oldGlobalState.GetURLs(); len(urls) > 0 {
+		state.SetURLs(urls)
+	}
+	if hostPorts := oldGlobalState.GetHostPorts(); len(hostPorts) > 0 {
+		state.SetHostPorts(hostPorts)
+	}
 
 	// 关键修复：应用 Parse 解析的凭据结果到新 Config
 	// Parse 会根据 -user/-pwd/-usera/-pwda 等参数更新凭据
