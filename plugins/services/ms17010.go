@@ -305,14 +305,12 @@ func (p *MS17010Plugin) checkMS17010Vulnerability(ip string, config *common.Conf
 	reply := make([]byte, 1024)
 	n, readErr := conn.Read(reply)
 	if readErr != nil || n < 36 {
-		if readErr != nil {
-			return false, "", fmt.Errorf("读取协议响应错误: %w", readErr)
-		}
-		return false, "", fmt.Errorf("协议响应不完整")
+		// 连接被关闭或响应不完整，通常表示目标不支持SMBv1
+		return false, "", fmt.Errorf("目标可能不支持SMBv1")
 	}
 
 	if binary.LittleEndian.Uint32(reply[9:13]) != 0 {
-		return false, "", fmt.Errorf("协议协商被拒绝")
+		return false, "", fmt.Errorf("SMBv1协议协商被拒绝")
 	}
 
 	// 建立会话
@@ -322,14 +320,11 @@ func (p *MS17010Plugin) checkMS17010Vulnerability(ip string, config *common.Conf
 
 	n, readErr = conn.Read(reply)
 	if readErr != nil || n < 36 {
-		if readErr != nil {
-			return false, "", fmt.Errorf("读取会话响应错误: %w", readErr)
-		}
-		return false, "", fmt.Errorf("会话响应不完整")
+		return false, "", fmt.Errorf("SMB会话建立失败")
 	}
 
 	if binary.LittleEndian.Uint32(reply[9:13]) != 0 {
-		return false, "", fmt.Errorf("会话建立失败")
+		return false, "", fmt.Errorf("SMB会话被拒绝")
 	}
 
 	// 提取系统信息
