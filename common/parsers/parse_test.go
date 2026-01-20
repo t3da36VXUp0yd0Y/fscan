@@ -843,3 +843,437 @@ func TestRemoveDuplicatePorts(t *testing.T) {
 
 	t.Logf("✓ removeDuplicatePorts: %d → %d", len(input), len(result))
 }
+
+// =============================================================================
+// 边缘情况测试 - IP解析
+// =============================================================================
+
+// TestParseIP_InternalNetworkShortcuts 测试内网简写
+func TestParseIP_InternalNetworkShortcuts(t *testing.T) {
+	tests := []struct {
+		name        string
+		shortcut    string
+		expectMin   int // 最少应该有多少IP
+		sampleCheck string
+	}{
+		{
+			"192简写",
+			"192",
+			100, // 192.168.0.0/16 应该很多
+			"192.168.",
+		},
+		{
+			"172简写",
+			"172",
+			100, // 172.16.0.0/12 应该很多
+			"172.",
+		},
+		{
+			"10简写",
+			"10",
+			100, // 10.0.0.0/8 应该很多
+			"10.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseIP(tt.shortcut, "", "")
+
+			if err != nil {
+				t.Fatalf("ParseIP(%q) error = %v", tt.shortcut, err)
+			}
+
+			if len(result) < tt.expectMin {
+				t.Errorf("ParseIP(%q) 返回%d个IP，期望至少%d个",
+					tt.shortcut, len(result), tt.expectMin)
+			}
+
+			// 检查样本
+			hasMatch := false
+			for _, ip := range result[:min(10, len(result))] {
+				if len(ip) >= len(tt.sampleCheck) && ip[:len(tt.sampleCheck)] == tt.sampleCheck {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
+				t.Errorf("ParseIP(%q) 结果不包含预期前缀 %q", tt.shortcut, tt.sampleCheck)
+			}
+
+			t.Logf("✓ ParseIP(%q) → %d个IP（内网简写展开正确）", tt.shortcut, len(result))
+		})
+	}
+}
+
+// TestParseIP_FullIPRange 测试完整IP范围格式
+func TestParseIP_FullIPRange(t *testing.T) {
+	tests := []struct {
+		name        string
+		rangeStr    string
+		expectCount int
+		expectFirst string
+		expectLast  string
+	}{
+		{
+			"完整范围小",
+			"192.168.1.1-192.168.1.5",
+			5,
+			"192.168.1.1",
+			"192.168.1.5",
+		},
+		{
+			"跨子网范围",
+			"192.168.1.254-192.168.2.2",
+			5, // .254, .255, .0, .1, .2
+			"192.168.1.254",
+			"192.168.2.2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseIP(tt.rangeStr, "", "")
+
+			if err != nil {
+				t.Fatalf("ParseIP(%q) error = %v", tt.rangeStr, err)
+			}
+
+			if len(result) != tt.expectCount {
+				t.Errorf("ParseIP(%q) 返回%d个IP，期望%d个",
+					tt.rangeStr, len(result), tt.expectCount)
+			}
+
+			if len(result) > 0 && result[0] != tt.expectFirst {
+				t.Errorf("ParseIP(%q) 第一个IP = %q，期望 %q",
+					tt.rangeStr, result[0], tt.expectFirst)
+			}
+
+			if len(result) > 0 && result[len(result)-1] != tt.expectLast {
+				t.Errorf("ParseIP(%q) 最后一个IP = %q，期望 %q",
+					tt.rangeStr, result[len(result)-1], tt.expectLast)
+			}
+
+			t.Logf("✓ ParseIP(%q) → %v", tt.rangeStr, result)
+		})
+	}
+}
+
+// TestParseIP_InvalidCIDR 测试无效CIDR
+func TestParseIP_InvalidCIDR(t *testing.T) {
+	tests := []struct {
+		name      string
+		cidr      string
+		expectErr bool
+	}{
+		{"无效掩码/33", "192.168.1.0/33", true},
+		{"无效掩码/0", "192.168.1.0/0", false}, // /0 技术上是有效的
+		{"格式错误", "192.168.1.0/abc", true},
+		{"缺少掩码", "192.168.1.0/", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseIP(tt.cidr, "", "")
+
+			if tt.expectErr && err == nil {
+				t.Errorf("ParseIP(%q) 应该返回错误", tt.cidr)
+			}
+			if !tt.expectErr && err != nil {
+				t.Errorf("ParseIP(%q) 不应该返回错误: %v", tt.cidr, err)
+			}
+
+			t.Logf("✓ ParseIP(%q) 错误处理正确", tt.cidr)
+		})
+	}
+}
+
+// TestParseIP_InvalidIPRange 测试无效IP范围
+func TestParseIP_InvalidIPRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		rangeStr  string
+		expectErr bool
+	}{
+		{"起始大于结束", "192.168.1.100-50", true},
+		{"无效起始IP", "999.999.999.999-192.168.1.100", true},
+		{"结束值超255", "192.168.1.1-256", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseIP(tt.rangeStr, "", "")
+
+			if tt.expectErr && err == nil {
+				t.Errorf("ParseIP(%q) 应该返回错误", tt.rangeStr)
+			}
+
+			t.Logf("✓ ParseIP(%q) 错误处理正确", tt.rangeStr)
+		})
+	}
+}
+
+// =============================================================================
+// 边缘情况测试 - 文件读取
+// =============================================================================
+
+// TestReadLinesFromFile_WindowsLineEndings 测试Windows行尾
+func TestReadLinesFromFile_WindowsLineEndings(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "crlf.txt")
+
+	// Windows风格行尾: CRLF
+	content := "line1\r\nline2\r\nline3\r\n"
+	if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	result, err := ReadLinesFromFile(testFile)
+	if err != nil {
+		t.Fatalf("ReadLinesFromFile error = %v", err)
+	}
+
+	// 应该有3行，且不包含\r
+	if len(result) != 3 {
+		t.Errorf("ReadLinesFromFile 返回%d行，期望3行", len(result))
+	}
+
+	for i, line := range result {
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			t.Errorf("第%d行包含\\r: %q", i+1, line)
+		}
+	}
+
+	t.Logf("✓ Windows行尾处理正确: %v", result)
+}
+
+// TestReadLinesFromFile_OnlyComments 测试只有注释的文件
+func TestReadLinesFromFile_OnlyComments(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "comments.txt")
+
+	content := `# comment 1
+# comment 2
+# comment 3
+`
+	if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	result, err := ReadLinesFromFile(testFile)
+	if err != nil {
+		t.Fatalf("ReadLinesFromFile error = %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("只有注释的文件应该返回空列表，实际返回: %v", result)
+	}
+
+	t.Logf("✓ 只有注释的文件正确返回空列表")
+}
+
+// TestReadLinesFromFile_EmptyFile 测试空文件
+func TestReadLinesFromFile_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "empty.txt")
+
+	if err := os.WriteFile(testFile, []byte(""), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	result, err := ReadLinesFromFile(testFile)
+	if err != nil {
+		t.Fatalf("ReadLinesFromFile error = %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("空文件应该返回空列表，实际返回: %v", result)
+	}
+
+	t.Logf("✓ 空文件正确返回空列表")
+}
+
+// TestReadLinesFromFile_MixedContent 测试混合内容
+func TestReadLinesFromFile_MixedContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "mixed.txt")
+
+	content := `# Header comment
+192.168.1.1
+  # indented comment
+192.168.1.2
+
+   192.168.1.3
+# trailing comment
+`
+	if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	result, err := ReadLinesFromFile(testFile)
+	if err != nil {
+		t.Fatalf("ReadLinesFromFile error = %v", err)
+	}
+
+	expected := []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("ReadLinesFromFile = %v, want %v", result, expected)
+	}
+
+	t.Logf("✓ 混合内容处理正确: %v", result)
+}
+
+// =============================================================================
+// 边缘情况测试 - 凭据解析
+// =============================================================================
+
+// TestParseUserPassFile 测试用户密码文件解析
+func TestParseUserPassFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "userpass.txt")
+
+	content := `admin:password123
+root:toor
+# comment line
+user:pass:with:colons
+:emptyuser
+nopassword
+test:
+`
+	if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	result, err := ParseUserPassFile(testFile)
+	if err != nil {
+		t.Fatalf("ParseUserPassFile error = %v", err)
+	}
+
+	// 验证解析结果
+	tests := []struct {
+		username string
+		password string
+	}{
+		{"admin", "password123"},
+		{"root", "toor"},
+		{"user", "pass:with:colons"}, // 密码可以包含冒号
+		{"test", ""},                  // 空密码
+	}
+
+	if len(result) != len(tests) {
+		t.Errorf("ParseUserPassFile 返回%d对，期望%d对", len(result), len(tests))
+	}
+
+	for i, tt := range tests {
+		if i >= len(result) {
+			break
+		}
+		if result[i].Username != tt.username || result[i].Password != tt.password {
+			t.Errorf("第%d对: got (%q, %q), want (%q, %q)",
+				i, result[i].Username, result[i].Password, tt.username, tt.password)
+		}
+	}
+
+	t.Logf("✓ 用户密码文件解析正确: %d对", len(result))
+}
+
+// TestParseHashFile 测试哈希文件解析
+func TestParseHashFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "hashes.txt")
+
+	content := `# MD5 hashes
+5d41402abc4b2a76b9719d911017c592
+098f6bcd4621d373cade4e832627b4f6
+# invalid hash (too short)
+5d41402abc4b2a76
+# invalid hash (non-hex)
+zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+# valid hash
+d41d8cd98f00b204e9800998ecf8427e
+`
+	if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	hashValues, hashBytes, err := ParseHashFile(testFile)
+	if err != nil {
+		t.Fatalf("ParseHashFile error = %v", err)
+	}
+
+	// 应该只有3个有效hash
+	if len(hashValues) != 3 {
+		t.Errorf("ParseHashFile 返回%d个hash，期望3个", len(hashValues))
+	}
+
+	if len(hashBytes) != 3 {
+		t.Errorf("ParseHashFile hashBytes 返回%d个，期望3个", len(hashBytes))
+	}
+
+	// 验证hash bytes长度
+	for i, hb := range hashBytes {
+		if len(hb) != 16 { // MD5 = 16 bytes
+			t.Errorf("hashBytes[%d] 长度=%d，期望16", i, len(hb))
+		}
+	}
+
+	t.Logf("✓ 哈希文件解析正确: %d个有效hash", len(hashValues))
+}
+
+// =============================================================================
+// 边缘情况测试 - 端口解析
+// =============================================================================
+
+// TestParsePort_LargeRange 测试大范围端口
+func TestParsePort_LargeRange(t *testing.T) {
+	result := ParsePort("1-1000")
+
+	if len(result) != 1000 {
+		t.Errorf("ParsePort(1-1000) 返回%d个端口，期望1000个", len(result))
+	}
+
+	// 验证第一个和最后一个
+	if result[0] != 1 || result[len(result)-1] != 1000 {
+		t.Errorf("ParsePort(1-1000) 范围不正确: first=%d, last=%d",
+			result[0], result[len(result)-1])
+	}
+
+	t.Logf("✓ 大范围端口解析正确: %d个", len(result))
+}
+
+// TestParsePort_EmptyElements 测试空元素
+func TestParsePort_EmptyElements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []int
+	}{
+		{"连续逗号", "80,,443", []int{80, 443}},
+		{"开头逗号", ",80,443", []int{80, 443}},
+		{"结尾逗号", "80,443,", []int{80, 443}},
+		{"多个空", "80,,,443,,,", []int{80, 443}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParsePort(tt.input)
+
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("ParsePort(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+
+			t.Logf("✓ ParsePort(%q) 正确处理空元素", tt.input)
+		})
+	}
+}
+
+// =============================================================================
+// 辅助函数
+// =============================================================================
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
