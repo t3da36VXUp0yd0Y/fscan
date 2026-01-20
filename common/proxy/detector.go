@@ -88,7 +88,10 @@ func AutoConfigureProxy(config *ProxyConfig) {
 	// SOCKS5代理默认假设非标准（后续由探测函数验证）
 	if config.Type == ProxyTypeSOCKS5 {
 		SetSOCKS5Standard(false)
-		SetProxyReliable(true) // 默认可靠，后续由 ProbeProxyBehavior 更新
+		// 只有未探测过时才设置默认值，避免覆盖探测结果
+		if !IsProxyProbed() {
+			SetProxyReliable(true) // 默认可靠，后续由 ProbeProxyBehavior 更新
+		}
 	}
 
 	// HTTP/HTTPS代理视为标准且可靠

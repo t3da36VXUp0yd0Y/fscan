@@ -401,6 +401,7 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 	_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 	buf := make([]byte, 256)
 	n, _ := conn.Read(buf)
+	_ = conn.SetReadDeadline(time.Time{}) // 重置 deadline
 
 	if n > 0 {
 		// 收到数据，检查是否为代理错误响应
@@ -412,10 +413,17 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 		return true, "banner"
 	}
 
-	// 阶段2: 发送探测数据 (HTTP OPTIONS)
-	// OPTIONS 是安全的 HTTP 方法，不会修改服务器状态
+	// 阶段2: 发送探测数据 (HTTP GET with Host header)
+	// 使用完整的 HTTP 请求以获得服务器响应
+	// 从 addr 提取主机名作为 Host 头（HTTP 服务器需要正确的 Host 才会响应）
+	host := addr
+	if colonIdx := strings.LastIndex(addr, ":"); colonIdx > 0 {
+		host = addr[:colonIdx]
+	}
+	probeReq := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
 	_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-	_, writeErr := conn.Write([]byte("OPTIONS / HTTP/1.0\r\n\r\n"))
+	_, writeErr := conn.Write([]byte(probeReq))
+	_ = conn.SetWriteDeadline(time.Time{}) // 重置 deadline
 
 	if writeErr != nil && isConnectionClosed(writeErr) {
 		// 写入失败（broken pipe/reset）= 连接已被拒绝
@@ -423,9 +431,9 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 		return false, "write_failed"
 	}
 
-	// 阶段3: 等待探测响应 (500ms)
-	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	n, err := conn.Read(buf)
+	// 阶段3: 等待探测响应 (2s - 需要足够时间让 HTTP 服务器响应)
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, readErr := conn.Read(buf)
 	_ = conn.SetReadDeadline(time.Time{})
 
 	if n > 0 {
@@ -439,11 +447,11 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 	}
 
 	// 阶段4: 最终判断
-	if err != nil {
-		errLower := strings.ToLower(err.Error())
+	if readErr != nil {
+		errLower := strings.ToLower(readErr.Error())
 		for _, pattern := range proxyFailurePatterns {
 			if strings.Contains(errLower, pattern) {
-				common.LogDebug(fmt.Sprintf("代理连接被拒绝 %s: %v", addr, err))
+				common.LogDebug(fmt.Sprintf("代理连接被拒绝 %s: %v", addr, readErr))
 				return false, "proxy_reject"
 			}
 		}
