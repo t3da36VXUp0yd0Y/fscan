@@ -7,7 +7,8 @@ import (
 /*
 initialize.go - 统一初始化入口
 
-将分散的初始化步骤整合为单一入口，简化 main.go。
+简化后的流程：
+命令行 → FlagVars → BuildConfig() → Config + State
 */
 
 // InitResult 初始化结果
@@ -18,60 +19,22 @@ type InitResult struct {
 }
 
 // Initialize 统一初始化函数
-// 封装 Parse → InitGlobalConfigAndState → InitOutput 流程
-// 返回可直接使用的 Config 和 State 对象
+// 封装 BuildConfig → InitOutput 流程
 func Initialize(info *HostInfo) (*InitResult, error) {
-	// 初始化日志系统
+	// 1. 初始化日志系统
 	InitLogger()
 
-	// 解析和验证参数（会更新 globalConfig 的凭据信息）
-	if err := Parse(info); err != nil {
-		return nil, fmt.Errorf("参数解析失败: %w", err)
+	// 2. 从 FlagVars 构建 Config 和 State
+	cfg, state, err := BuildConfig(GetFlagVars(), info)
+	if err != nil {
+		return nil, fmt.Errorf("配置构建失败: %w", err)
 	}
 
-	// 获取 Parse 更新过的凭据信息
-	parsedCreds := GetGlobalConfig().Credentials
-
-	// 从 FlagVars 构建 Config（新架构）
-	cfg := BuildConfigFromFlags(flagVars)
-
-	// 关键修复：获取 Parse 阶段设置的全局状态数据
-	// Parse 通过 updateGlobalVariables 将 URLs 和 HostPorts 设置到了全局状态
-	// 需要保留这些数据到新状态中
-	oldGlobalState := GetGlobalState()
-	state := NewState()
-
-	// 迁移 Parse 阶段设置的目标数据
-	if urls := oldGlobalState.GetURLs(); len(urls) > 0 {
-		state.SetURLs(urls)
-	}
-	if hostPorts := oldGlobalState.GetHostPorts(); len(hostPorts) > 0 {
-		state.SetHostPorts(hostPorts)
-	}
-
-	// 关键修复：应用 Parse 解析的凭据结果到新 Config
-	// Parse 会根据 -user/-pwd/-usera/-pwda 等参数更新凭据
-	if len(parsedCreds.UserPassPairs) > 0 {
-		cfg.Credentials.UserPassPairs = parsedCreds.UserPassPairs
-	}
-	if len(parsedCreds.Userdict) > 0 {
-		cfg.Credentials.Userdict = parsedCreds.Userdict
-	}
-	if len(parsedCreds.Passwords) > 0 {
-		cfg.Credentials.Passwords = parsedCreds.Passwords
-	}
-	if len(parsedCreds.HashValues) > 0 {
-		cfg.Credentials.HashValues = parsedCreds.HashValues
-	}
-	if len(parsedCreds.HashBytes) > 0 {
-		cfg.Credentials.HashBytes = parsedCreds.HashBytes
-	}
-
-	// 设置全局实例
+	// 3. 设置全局实例
 	SetGlobalConfig(cfg)
 	SetGlobalState(state)
 
-	// 初始化输出系统
+	// 4. 初始化输出系统
 	if err := InitOutput(); err != nil {
 		return nil, fmt.Errorf("输出初始化失败: %w", err)
 	}
@@ -120,7 +83,6 @@ func ValidateExclusiveParams(info *HostInfo) error {
 }
 
 // Cleanup 清理资源
-// 应该在程序退出前调用
 func Cleanup() error {
 	return CloseOutput()
 }
