@@ -13,23 +13,27 @@ import (
 )
 
 // =============================================================================
-// 日志级别常量 (从Types.go迁移)
+// 日志级别常量 - 层级设计
 // =============================================================================
 
-// LogLevel 日志级别类型
-type LogLevel string
+// LogLevel 日志级别类型（数值越小越详细）
+type LogLevel int
 
-// 定义系统支持的日志级别常量
+// 定义系统支持的日志级别常量（层级：Debug < Base < Info < Success < Vuln < Error）
 const (
-	LevelAll             LogLevel = "ALL"               // 显示所有级别日志
-	LevelError           LogLevel = "ERROR"             // 仅显示错误日志
-	LevelBase            LogLevel = "BASE"              // 仅显示基础信息日志
-	LevelInfo            LogLevel = "INFO"              // 仅显示信息日志
-	LevelSuccess         LogLevel = "SUCCESS"           // 仅显示成功日志（Web指纹等）
-	LevelVuln            LogLevel = "VULN"              // 漏洞和重要发现（密码成功、漏洞等）
-	LevelDebug           LogLevel = "DEBUG"             // 仅显示调试日志
-	LevelInfoSuccess     LogLevel = "INFO_SUCCESS"      // 仅显示信息和成功日志
-	LevelBaseInfoSuccess LogLevel = "BASE_INFO_SUCCESS" // 显示基础、信息和成功日志
+	LevelDebug   LogLevel = 0 // 调试信息（最详细）
+	LevelBase    LogLevel = 1 // 基础信息（扫描进度等）
+	LevelInfo    LogLevel = 2 // 一般信息（端口开放、服务识别等）
+	LevelSuccess LogLevel = 3 // 成功结果（Web指纹等）
+	LevelVuln    LogLevel = 4 // 重要发现（弱密码、漏洞等）
+	LevelError   LogLevel = 5 // 错误信息（始终显示）
+)
+
+// 向后兼容的别名
+const (
+	LevelAll             LogLevel = LevelDebug // ALL 等同于 Debug（显示所有）
+	LevelInfoSuccess     LogLevel = LevelInfo  // 废弃，映射到 Info
+	LevelBaseInfoSuccess LogLevel = LevelBase  // 废弃，映射到 Base
 )
 
 // =============================================================================

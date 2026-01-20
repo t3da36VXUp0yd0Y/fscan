@@ -128,33 +128,14 @@ func (l *Logger) log(level LogLevel, content string) {
 }
 
 // shouldLog 检查是否应该记录该级别的日志
+// 层级过滤：消息级别 >= 配置级别 时显示，Error 始终显示
 func (l *Logger) shouldLog(level LogLevel) bool {
-	switch l.config.Level {
-	case LevelAll:
+	// Error 级别始终显示
+	if level == LevelError {
 		return true
-	case LevelError:
-		return level == LevelError
-	case LevelVuln:
-		return level == LevelVuln
-	case LevelBase:
-		return level == LevelBase
-	case LevelInfo:
-		return level == LevelInfo
-	case LevelSuccess:
-		return level == LevelSuccess
-	case LevelDebug:
-		return level == LevelDebug
-	case LevelInfoSuccess:
-		return level == LevelInfo || level == LevelSuccess || level == LevelVuln
-	case LevelBaseInfoSuccess:
-		return level == LevelBase || level == LevelInfo || level == LevelSuccess || level == LevelVuln
-	default:
-		// 向后兼容：字符串"debug"显示所有
-		if string(l.config.Level) == "debug" {
-			return true
-		}
-		return level == LevelInfo || level == LevelSuccess || level == LevelVuln
 	}
+	// 层级过滤：消息级别 >= 配置级别
+	return level >= l.config.Level
 }
 
 // outputMessage 输出消息
