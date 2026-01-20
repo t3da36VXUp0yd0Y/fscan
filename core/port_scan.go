@@ -353,8 +353,10 @@ func scanSinglePort(host string, port int, addr string, timeout time.Duration, c
 		return
 	}
 
-	// 步骤1.5：代理连接验证（防止非标准SOCKS5代理的"全回显"问题）
-	if !verifyProxyConnection(conn, addr) {
+	// 步骤1.5：代理连接深度验证（防止透明代理/全回显代理的假连接问题）
+	valid, verifyMethod := verifyProxyConnectionDeep(conn, addr)
+	if !valid {
+		common.LogDebug(fmt.Sprintf("代理验证失败 %s: %s", addr, verifyMethod))
 		_ = conn.Close()
 		return
 	}
@@ -385,46 +387,140 @@ func isTimeoutError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "i/o timeout")
 }
 
-// verifyProxyConnection 验证代理连接是否真正可用
-// 防止非标准SOCKS5代理的"全回显"问题：代理连接成功但目标实际不可达
-// 返回 true 表示连接有效，false 表示连接无效（目标不可达）
-func verifyProxyConnection(conn net.Conn, addr string) bool {
+// verifyProxyConnectionDeep 深度验证代理连接是否真正可用（4阶段验证）
+// 防止透明代理/全回显代理的假连接问题
+// 返回: (是否有效, 验证方式)
+func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 	// 如果没有使用代理，跳过验证
 	if !common.IsProxyEnabled() {
-		return true
+		return true, "direct"
 	}
 
-	// 如果代理不可靠（存在全回显问题），直接返回 false
-	if !common.IsProxyReliable() {
-		common.LogDebug(fmt.Sprintf("代理不可靠，跳过端口 %s", addr))
-		return false
+	// 阶段1: 读取 Banner (200ms)
+	// 某些服务会主动发送欢迎消息
+	_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	buf := make([]byte, 256)
+	n, _ := conn.Read(buf)
+
+	if n > 0 {
+		// 收到数据，检查是否为代理错误响应
+		if isProxyErrorResponse(buf[:n]) {
+			common.LogDebug(fmt.Sprintf("代理返回错误响应 %s", addr))
+			return false, "proxy_error"
+		}
+		// 收到有效 Banner，确认端口开放
+		return true, "banner"
 	}
 
-	// 设置短超时进行连接验证（100ms）
-	// 如果目标端口真的开放，不会在这么短时间内收到错误
-	// 如果目标不可达，非标准代理可能会立即返回错误
-	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	// 阶段2: 发送探测数据 (HTTP OPTIONS)
+	// OPTIONS 是安全的 HTTP 方法，不会修改服务器状态
+	_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+	_, writeErr := conn.Write([]byte("OPTIONS / HTTP/1.0\r\n\r\n"))
 
-	// 尝试读取（非阻塞检查）
-	buf := make([]byte, 1)
-	_, err := conn.Read(buf)
+	if writeErr != nil && isConnectionClosed(writeErr) {
+		// 写入失败（broken pipe/reset）= 连接已被拒绝
+		common.LogDebug(fmt.Sprintf("探测写入失败 %s: %v", addr, writeErr))
+		return false, "write_failed"
+	}
 
-	// 重置超时设置
+	// 阶段3: 等待探测响应 (500ms)
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	n, err := conn.Read(buf)
 	_ = conn.SetReadDeadline(time.Time{})
 
+	if n > 0 {
+		// 收到响应，检查是否为代理错误
+		if isProxyErrorResponse(buf[:n]) {
+			common.LogDebug(fmt.Sprintf("代理探测返回错误 %s", addr))
+			return false, "proxy_error"
+		}
+		// 收到有效响应，确认端口开放
+		return true, "probe"
+	}
+
+	// 阶段4: 最终判断
 	if err != nil {
 		errLower := strings.ToLower(err.Error())
 		for _, pattern := range proxyFailurePatterns {
 			if strings.Contains(errLower, pattern) {
-				common.LogDebug(fmt.Sprintf("代理连接验证失败 %s: %v", addr, err))
-				return false
+				common.LogDebug(fmt.Sprintf("代理连接被拒绝 %s: %v", addr, err))
+				return false, "proxy_reject"
 			}
 		}
-		// 超时错误是正常的（目标没有主动发送数据）
-		// EOF 也可能是正常的（某些服务的行为）
 	}
 
-	return true
+	// 代理不可靠 + 无响应 = 假连接（全回显代理的典型行为）
+	if !common.IsProxyReliable() {
+		common.LogDebug(fmt.Sprintf("代理不可靠且无响应，判定为假连接 %s", addr))
+		return false, "no_response_unreliable"
+	}
+
+	// 代理可靠 + 无响应 = 保守确认开放（可能是静默服务）
+	return true, "uncertain"
+}
+
+// isProxyErrorResponse 检查是否为代理错误响应
+// 支持 SOCKS5 错误码和常见代理错误模式
+func isProxyErrorResponse(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	// SOCKS5 错误响应检查
+	// SOCKS5 响应格式: [VER][REP][RSV][ATYP]...
+	// REP 字段: 0x00=成功, 0x01-0x08=各种失败
+	if len(data) >= 2 && data[0] == 0x05 {
+		rep := data[1]
+		if rep >= 0x01 && rep <= 0x08 {
+			return true
+		}
+	}
+
+	// 检查常见的代理错误文本
+	dataStr := strings.ToLower(string(data))
+	proxyErrorTexts := []string{
+		"connection refused",
+		"host unreachable",
+		"network unreachable",
+		"connection timed out",
+		"proxy error",
+		"gateway error",
+		"bad gateway",
+		"502",
+		"503",
+	}
+
+	for _, errText := range proxyErrorTexts {
+		if strings.Contains(dataStr, errText) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isConnectionClosed 检查错误是否表示连接已关闭
+func isConnectionClosed(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+	closedPatterns := []string{
+		"broken pipe",
+		"connection reset",
+		"connection refused",
+		"use of closed network connection",
+		"connection was forcibly closed",
+	}
+
+	for _, pattern := range closedPatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // saveOpenPort 保存开放端口结果

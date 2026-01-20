@@ -365,7 +365,7 @@ func (s *socks5Dialer) updateAverageConnectTime(duration time.Duration) {
 }
 
 // ProbeProxyBehavior 探测代理是否存在"全回显"问题
-// 通过连接一个几乎肯定不可达的地址来判断代理行为
+// 通过连接一个几乎肯定不可达的地址，并尝试发送数据来判断代理行为
 // 返回 true 表示代理可靠，false 表示代理存在全回显问题
 func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 	// 使用 RFC 5737 保留的测试 IP (TEST-NET-1) + 高端口
@@ -380,8 +380,58 @@ func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 		// 连接失败 = 正常代理行为，代理可靠
 		return true
 	}
+	defer conn.Close()
 
-	// 连接"成功" = 代理存在全回显问题，不可靠
-	_ = conn.Close()
+	// 连接"成功"，进一步验证：尝试发送数据检查是否真的可达
+	// 全回显代理会接受连接，但数据无法到达目标
+
+	// 设置短超时
+	_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+	_, writeErr := conn.Write([]byte("PROBE\r\n"))
+
+	if writeErr != nil {
+		// 写入失败 = 连接不可用，但这是预期的（目标不可达）
+		// 某些代理会在写入时才报告真实错误
+		return true
+	}
+
+	// 等待响应或错误
+	_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	buf := make([]byte, 64)
+	n, readErr := conn.Read(buf)
+
+	if readErr != nil {
+		// 读取超时或错误 = 目标不可达，但代理行为正常
+		// 说明代理没有伪造响应
+		errStr := readErr.Error()
+		if contains(errStr, "timeout", "i/o timeout") {
+			// 超时可能意味着代理接受了连接但没有伪造响应
+			// 这是边界情况，暂时认为不可靠
+			return false
+		}
+		// 其他错误（reset, refused等）说明代理正确报告了目标不可达
+		return true
+	}
+
+	// 收到数据 = 代理伪造了响应，不可靠
+	if n > 0 {
+		return false
+	}
+
+	// 代理接受连接且不报错也不响应 = 全回显行为
+	return false
+}
+
+// contains 检查字符串是否包含任一子串
+func contains(s string, substrs ...string) bool {
+	for _, sub := range substrs {
+		if len(sub) > 0 && len(s) >= len(sub) {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
