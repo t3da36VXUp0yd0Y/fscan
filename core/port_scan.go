@@ -322,7 +322,7 @@ func buildServiceLogMessage(addr string, serviceInfo *ServiceInfo, isWeb bool) s
 
 	// 构建 [Product:xxx ||Version:xxx] 格式
 	var info []string
-	if product, ok := serviceInfo.Extras["product"]; ok && product != "" {
+	if product, ok := serviceInfo.Extras["vendor_product"]; ok && product != "" {
 		info = append(info, fmt.Sprintf("Product:%s", product))
 	}
 	if serviceInfo.Version != "" {

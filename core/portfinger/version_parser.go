@@ -29,12 +29,7 @@ var (
 func (m *Match) ParseVersionInfo(response []byte) Extras {
 	var extras = Extras{}
 
-	// 确保有匹配项
-	if len(m.FoundItems) == 0 {
-		return extras
-	}
-
-	// 替换版本信息中的占位符（单次扫描）
+	// 替换版本信息中的占位符（如 $1, $2 等）
 	versionInfo := m.VersionInfo
 	if len(m.FoundItems) > 0 {
 		replacements := make([]string, 0, len(m.FoundItems)*2)

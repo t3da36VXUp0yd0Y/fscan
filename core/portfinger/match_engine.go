@@ -6,6 +6,32 @@ import (
 	"strings"
 )
 
+// BytesToRegexSafeString 将字节切片转换为 Go regexp 安全的正则表达式模式字符串
+// 非打印字符和高位字节转换为 \x{NN} 形式，用于编译正则表达式
+func BytesToRegexSafeString(b []byte) string {
+	var result strings.Builder
+	for _, c := range b {
+		if c < 32 || c >= 128 {
+			// 控制字符和高位字节转换为 \x{NN} 格式
+			result.WriteString(fmt.Sprintf("\\x{%02x}", c))
+		} else {
+			result.WriteByte(c)
+		}
+	}
+	return result.String()
+}
+
+// bytesToLatin1String 将字节切片转换为 Latin-1 字符串
+// 每个字节直接映射到对应的 Unicode 码点 U+0000-U+00FF
+// 这样可以与使用 \x{NN} 格式的正则表达式正确匹配
+func bytesToLatin1String(b []byte) string {
+	runes := make([]rune, len(b))
+	for i, c := range b {
+		runes[i] = rune(c)
+	}
+	return string(runes)
+}
+
 // parseMatchDirective 解析match/softmatch指令的通用实现
 func (p *Probe) parseMatchDirective(data, prefix string, isSoft bool) (Match, error) {
 	match := Match{IsSoft: isSoft}
@@ -23,13 +49,22 @@ func (p *Probe) parseMatchDirective(data, prefix string, isSoft bool) (Match, er
 	pattern := textSplited[0]
 	versionInfo := strings.Join(textSplited[1:], "")
 
+	// versionInfo 格式是 "flags p/product/ v/version/ ..."
+	// flags 是正则表达式修饰符(如 s、i、si)，后面跟空格和版本信息字段
+	// 需要跳过 flags 部分，找到第一个空格开始的版本信息
+	if idx := strings.Index(versionInfo, " "); idx != -1 {
+		versionInfo = versionInfo[idx:]
+	}
+
 	// 解码并编译正则表达式
 	patternUnescaped, decodeErr := DecodePattern(pattern)
 	if decodeErr != nil {
 		return match, decodeErr
 	}
 
-	patternCompiled, compileErr := regexp.Compile(string(patternUnescaped))
+	// 将字节模式转换为 Go regexp 安全的字符串（处理高位字节）
+	safePattern := BytesToRegexSafeString(patternUnescaped)
+	patternCompiled, compileErr := regexp.Compile(safePattern)
 	if compileErr != nil {
 		return match, compileErr
 	}
@@ -58,10 +93,13 @@ func (m *Match) MatchPattern(response []byte) bool {
 		return false
 	}
 
-	matched := m.PatternCompiled.Match(response)
+	// 将响应字节转换为 Latin-1 字符串，每个字节映射到对应的 Unicode 码点
+	// 这样正则表达式中的 \x{NN} 可以正确匹配对应的字节值
+	latin1Response := bytesToLatin1String(response)
+	matched := m.PatternCompiled.MatchString(latin1Response)
 	if matched {
 		// 提取匹配到的子组
-		submatches := m.PatternCompiled.FindStringSubmatch(string(response))
+		submatches := m.PatternCompiled.FindStringSubmatch(latin1Response)
 		if len(submatches) > 1 {
 			m.FoundItems = submatches[1:] // 排除完整匹配，只保留分组
 		}

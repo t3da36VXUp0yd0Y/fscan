@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -116,10 +117,22 @@ func (l *Logger) log(level LogLevel, content string) {
 
 	// 格式化消息：保留前缀，去掉时间戳
 	prefix := l.getLevelPrefix(level)
-	logMsg := fmt.Sprintf("%s %s", prefix, content)
 
-	// 输出消息
-	l.outputMessage(level, logMsg)
+	// 处理多行内容：给每行加上前缀，然后作为一个整体输出
+	if strings.Contains(content, "\n") {
+		lines := strings.Split(content, "\n")
+		var formattedLines []string
+		for _, line := range lines {
+			if line != "" {
+				formattedLines = append(formattedLines, fmt.Sprintf("%s %s", prefix, line))
+			}
+		}
+		logMsg := strings.Join(formattedLines, "\n")
+		l.outputMessage(level, logMsg)
+	} else {
+		logMsg := fmt.Sprintf("%s %s", prefix, content)
+		l.outputMessage(level, logMsg)
+	}
 
 	// 根据慢速输出设置决定是否添加延迟
 	if l.config.SlowOutput {

@@ -225,6 +225,8 @@ func (s *SmartPortInfoScanner) tryProbeList(probes []*Probe, usedProbes map[stri
 
 		response := s.info.Connect(probeData)
 		if len(response) == 0 {
+			// 连接可能被关闭（如服务端返回 EOF），尝试重建连接后继续下一个探针
+			s.reconnectIfNeeded()
 			continue
 		}
 
@@ -236,6 +238,26 @@ func (s *SmartPortInfoScanner) tryProbeList(probes []*Probe, usedProbes map[stri
 	}
 
 	return false
+}
+
+// reconnectIfNeeded 强制重建连接
+// 当探针收到空响应时调用，说明连接可能已被服务端关闭
+func (s *SmartPortInfoScanner) reconnectIfNeeded() {
+	// 关闭旧连接
+	if s.info.Conn != nil {
+		_ = s.info.Conn.Close()
+		s.info.Conn = nil
+		s.Conn = nil
+	}
+
+	// 重新建立连接
+	newConn, err := common.WrapperTcpWithTimeout("tcp", fmt.Sprintf("%s:%d", s.Address, s.Port), s.Timeout)
+	if err != nil {
+		return
+	}
+
+	s.info.Conn = newConn
+	s.Conn = newConn
 }
 
 // performSSLSecondStage 执行 SSL 多阶段探测

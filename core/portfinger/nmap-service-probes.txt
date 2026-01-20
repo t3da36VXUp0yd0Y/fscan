@@ -13987,7 +13987,14 @@ match sap-gui m|^\0\0\0\x0e\*\*DPTMMSG\*\*\0\0\xf8| p/SAP Gui Dispatcher/ cpe:/a
 softmatch smpp m|^\0\0\0\x10\x80\0\0\0\0\0\0\x03....$|s
 softmatch postgresql m|^E\0\0\0.SFATAL\0(?:VFATAL\0)?C\w{5}\0M| p/PostgreSQL DB/ cpe:/a:postgresql:postgresql/a
 
-# SMB Negotiate Protocol
+# SMB Multi-Protocol Negotiate (SMB1 format with SMB2 dialects)
+##############################NEXT PROBE##############################
+Probe TCP SMB2ProgNeg q|\0\0\0\x45\xffSMBr\0\0\0\0\x18\x01\x48\0\0\0\0\0\0\0\0\0\0\0\0\xff\xff\xac\x03\0\0\0\0\0\x22\0\x02NT LM 0.12\0\x02SMB 2.002\0\x02SMB 2.???\0|
+rarity 3
+ports 139,445
+match microsoft-ds m|^\0\0..\xfeSMB\x40\0|s p/Microsoft Windows SMB2/ o/Windows/ cpe:/o:microsoft:windows/a
+
+# SMB Negotiate Protocol (SMB1 - for legacy systems)
 ##############################NEXT PROBE##############################
 Probe TCP SMBProgNeg q|\0\0\0\xa4\xff\x53\x4d\x42\x72\0\0\0\0\x08\x01\x40\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x40\x06\0\0\x01\0\0\x81\0\x02PC NETWORK PROGRAM 1.0\0\x02MICROSOFT NETWORKS 1.03\0\x02MICROSOFT NETWORKS 3.0\0\x02LANMAN1.0\0\x02LM1.2X002\0\x02Samba\0\x02NT LANMAN 1.0\0\x02NT LM 0.12\0|
 rarity 4
