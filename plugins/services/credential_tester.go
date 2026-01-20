@@ -188,6 +188,7 @@ func TestCredentialsConcurrently(
 	}
 
 	return &ScanResult{
+		Type:    plugins.ResultTypeCredential, // 标记这是凭据测试结果
 		Success: false,
 		Service: serviceName,
 		Error:   fmt.Errorf("未发现弱密码"),

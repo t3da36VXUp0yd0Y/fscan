@@ -309,6 +309,8 @@ plugin_panic:
   other: "Plugin {{.Arg1}} panic while scanning {{.Arg2}}:{{.Arg3}}: {{.Arg4}}"
 plugin_scan_error:
   other: "Plugin scan error {{.Arg1}}:{{.Arg2}} - {{.Arg3}}"
+brute_no_weak_pass:
+  other: "{{.Arg1}}:{{.Arg2}} {{.Arg3}} no weak password found"
 
 # ========================= Port Scan Messages =========================
 invalid_port:

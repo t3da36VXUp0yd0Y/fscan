@@ -309,6 +309,8 @@ plugin_panic:
   other: "插件 {{.Arg1}} 扫描 {{.Arg2}}:{{.Arg3}} 时panic: {{.Arg4}}"
 plugin_scan_error:
   other: "插件扫描错误 {{.Arg1}}:{{.Arg2}} - {{.Arg3}}"
+brute_no_weak_pass:
+  other: "{{.Arg1}}:{{.Arg2}} {{.Arg3}} 未发现弱密码"
 
 # ========================= 端口扫描消息 =========================
 invalid_port:

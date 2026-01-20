@@ -212,11 +212,15 @@ func executeScanTask(config *common.Config, state *common.State, pluginName stri
 		if plugin != nil {
 			result := plugin.Scan(context.Background(), &target, config, state)
 			if result != nil {
-				if result.Error != nil {
-					common.LogError(i18n.Tr("plugin_scan_error", target.Host, target.Port, result.Error))
-				} else if result.Success {
+				if result.Success {
 					// 保存成功的扫描结果到文件
 					savePluginResult(&target, pluginName, result)
+				} else if result.Type == plugins.ResultTypeCredential {
+					// 凭据测试完成但未发现弱密码，在error级别输出提示
+					common.LogError(i18n.Tr("brute_no_weak_pass", target.Host, target.Port, pluginName))
+				} else if result.Error != nil {
+					// 其他类型的错误
+					common.LogError(i18n.Tr("plugin_scan_error", target.Host, target.Port, result.Error))
 				}
 			}
 		}
