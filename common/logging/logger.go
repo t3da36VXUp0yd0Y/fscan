@@ -114,10 +114,9 @@ func (l *Logger) log(level LogLevel, content string) {
 		return
 	}
 
-	// 格式化消息
-	timeStr := l.formatElapsedTime(time.Since(l.startTime))
+	// 格式化消息：保留前缀，去掉时间戳
 	prefix := l.getLevelPrefix(level)
-	logMsg := fmt.Sprintf("[%s] %s %s", timeStr, prefix, content)
+	logMsg := fmt.Sprintf("%s %s", prefix, content)
 
 	// 输出消息
 	l.outputMessage(level, logMsg)

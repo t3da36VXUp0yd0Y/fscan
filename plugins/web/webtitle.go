@@ -40,7 +40,7 @@ func NewWebTitlePlugin() *WebTitlePlugin {
 
 // Scan 执行WebTitle扫描
 func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config *common.Config, state *common.State) *WebScanResult {
-	title, status, server, fingerprints, url, err := p.getWebTitle(ctx, info, config)
+	title, status, length, server, fingerprints, url, err := p.getWebTitle(ctx, info, config)
 	if err != nil {
 		return &WebScanResult{
 			Success: false,
@@ -48,21 +48,24 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 		}
 	}
 
-	msg := fmt.Sprintf("WebTitle %s", url)
-	if title != "" {
-		msg += fmt.Sprintf(" [%s]", title)
+	// 构建输出：URL code:状态码 len:长度 title:标题 server:服务器 [指纹]
+	titleDisplay := title
+	if titleDisplay == "" {
+		titleDisplay = "None"
 	}
-	if status != 0 {
-		msg += fmt.Sprintf(" %d", status)
-	}
+	msg := fmt.Sprintf("%-30s code:%-3d len:%-5d title:%-20s", url, status, length, titleDisplay)
 	if server != "" {
-		msg += fmt.Sprintf(" %s", server)
+		msg += fmt.Sprintf(" server:%s", server)
 	}
-	// 基础信息用白色输出
-	common.LogInfo(msg)
-	// 指纹信息单独用绿色输出
 	if len(fingerprints) > 0 {
-		common.LogSuccess(fmt.Sprintf("WebFinger %s %v", url, fingerprints))
+		msg += fmt.Sprintf(" %v", fingerprints)
+	}
+
+	// 有指纹用绿色，无指纹用白色
+	if len(fingerprints) > 0 {
+		common.LogSuccess(msg)
+	} else {
+		common.LogInfo(msg)
 	}
 
 	return &WebScanResult{
@@ -75,7 +78,7 @@ func (p *WebTitlePlugin) Scan(ctx context.Context, info *common.HostInfo, config
 	}
 }
 
-func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo, config *common.Config) (string, int, string, []string, string, error) {
+func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo, config *common.Config) (string, int, int, string, []string, string, error) {
 	// 智能协议检测
 	protocol := p.detectProtocol(info, config)
 	baseURL := fmt.Sprintf("%s://%s:%d", protocol, info.Host, info.Port)
@@ -90,7 +93,7 @@ func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo,
 
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
 	if err != nil {
-		return "", 0, "", nil, displayURL, err
+		return "", 0, 0, "", nil, displayURL, err
 	}
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -98,13 +101,14 @@ func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo,
 	// 先使用不跟随重定向的Client获取原始响应
 	resp, err := lib.ClientNoRedirect.Do(req)
 	if err != nil {
-		return "", 0, "", nil, displayURL, err
+		return "", 0, 0, "", nil, displayURL, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if len(body) <= 0 && err != nil {
-		return "", resp.StatusCode, resp.Header.Get("Server"), nil, displayURL, err
+	contentLen := len(body)
+	if contentLen <= 0 && err != nil {
+		return "", resp.StatusCode, 0, resp.Header.Get("Server"), nil, displayURL, err
 	}
 
 	// 收集用于指纹识别的响应数据
@@ -157,7 +161,7 @@ func (p *WebTitlePlugin) getWebTitle(ctx context.Context, info *common.HostInfo,
 	// 执行指纹识别（合并原始响应和跳转后响应的指纹）
 	fingerprints := p.identifyFingerprintsMulti(info, baseURL, checkDataList, config)
 
-	return title, statusCode, server, fingerprints, displayURL, nil
+	return title, statusCode, contentLen, server, fingerprints, displayURL, nil
 }
 
 // resolveRedirectURL 解析重定向URL，处理相对路径

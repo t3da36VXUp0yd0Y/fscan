@@ -311,23 +311,37 @@ func isResourceExhaustedError(err error) bool {
 }
 
 // buildServiceLogMessage 构建服务识别的日志信息
-// 格式: addr service banner (简洁单行，方便复制)
+// 格式: addr service [Product:xxx ||Version:xxx] Banner:(xxx)
 func buildServiceLogMessage(addr string, serviceInfo *ServiceInfo, isWeb bool) string {
-	var parts []string
-	parts = append(parts, addr)
+	var msg strings.Builder
+	msg.WriteString(fmt.Sprintf("%-21s", addr))
 
 	if serviceInfo.Name != "unknown" {
-		parts = append(parts, serviceInfo.Name)
+		msg.WriteString(fmt.Sprintf(" %-8s", serviceInfo.Name))
 	}
 
-	// Banner 优先，其次是版本信息
-	if len(serviceInfo.Banner) > 0 && len(serviceInfo.Banner) < 100 {
-		parts = append(parts, strings.TrimSpace(serviceInfo.Banner))
-	} else if serviceInfo.Version != "" {
-		parts = append(parts, serviceInfo.Version)
+	// 构建 [Product:xxx ||Version:xxx] 格式
+	var info []string
+	if product, ok := serviceInfo.Extras["product"]; ok && product != "" {
+		info = append(info, fmt.Sprintf("Product:%s", product))
+	}
+	if serviceInfo.Version != "" {
+		info = append(info, fmt.Sprintf("Version:%s", serviceInfo.Version))
+	}
+	if len(info) > 0 {
+		msg.WriteString(fmt.Sprintf(" [%s]", strings.Join(info, " ||")))
 	}
 
-	return strings.Join(parts, " ")
+	// Banner 信息
+	if len(serviceInfo.Banner) > 0 {
+		banner := strings.TrimSpace(serviceInfo.Banner)
+		if len(banner) > 80 {
+			banner = banner[:80] + "..."
+		}
+		msg.WriteString(fmt.Sprintf(" Banner:(%s)", banner))
+	}
+
+	return msg.String()
 }
 
 // scanSinglePort 扫描单个端口并进行服务识别（重构后的简洁版本）
