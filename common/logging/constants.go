@@ -94,7 +94,7 @@ const (
 // GetDefaultLevelColors 获取默认的日志级别颜色映射
 func GetDefaultLevelColors() map[LogLevel]interface{} {
 	return map[LogLevel]interface{}{
-		LevelError:   color.FgRed,    // 错误日志显示红色
+		LevelError:   color.FgYellow, // 错误日志显示黄色
 		LevelVuln:    color.FgRed,    // 漏洞/重要发现显示红色（密码成功、漏洞等）
 		LevelBase:    color.FgWhite,  // 基础日志显示白色（普通信息）
 		LevelInfo:    color.FgWhite,  // 信息日志显示白色（普通信息）
