@@ -255,10 +255,10 @@ func testCredentialWithRetry(
 		// 根据错误类型决定是否重试
 		switch result.ErrorType {
 		case ErrorTypeAuth:
-			// 认证错误，不重试
+			// 认证错误（密码错误），不重试
 			return nil
-		case ErrorTypeNetwork:
-			// 网络错误，可以重试
+		case ErrorTypeNetwork, ErrorTypeUnknown:
+			// 网络错误或未知错误，可以重试（可能是服务端限流等临时问题）
 			if attempt < testConfig.MaxRetries-1 {
 				select {
 				case <-ctx.Done():
@@ -267,9 +267,6 @@ func testCredentialWithRetry(
 					// 继续重试
 				}
 			}
-		default:
-			// 未知错误，不重试
-			return nil
 		}
 	}
 	return nil

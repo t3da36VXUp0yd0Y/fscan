@@ -160,12 +160,22 @@ func classifySSHErrorType(err error) ErrorType {
 		return ErrorTypeUnknown
 	}
 
+	// SSH 特有的认证错误（密码错误）
 	sshAuthErrors := append(CommonAuthErrors,
 		"unable to authenticate",
 		"no supported methods remain",
 	)
 
-	return ClassifyError(err, sshAuthErrors, CommonNetworkErrors)
+	// SSH 特有的网络/临时错误（需要重试）
+	sshNetworkErrors := append(CommonNetworkErrors,
+		"handshake failed",           // 握手失败，可能是服务端限流
+		"ssh: disconnect",            // SSH 主动断开
+		"connection closed",          // 连接被关闭
+		"max startups",               // SSH MaxStartups 限制
+		"too many authentication",    // 认证次数过多
+	)
+
+	return ClassifyError(err, sshAuthErrors, sshNetworkErrors)
 }
 
 // scanWithKey 使用SSH私钥扫描
