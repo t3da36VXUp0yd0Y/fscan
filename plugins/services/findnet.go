@@ -76,9 +76,16 @@ func (p *FindNetPlugin) Scan(ctx context.Context, info *common.HostInfo, config 
 
 	state.IncrementTCPSuccessPacketCount()
 
-	// 记录发现的网络信息 (简洁单行格式，方便复制)
+	// 记录发现的网络信息 (每行一个IP，便于阅读)
 	if networkInfo.Valid {
-		common.LogSuccess(fmt.Sprintf("NetInfo %s %s", target, networkInfo.OneLine()))
+		// 输出主机名
+		if networkInfo.Hostname != "" {
+			common.LogSuccess(fmt.Sprintf("NetInfo %s [%s]", target, networkInfo.Hostname))
+		}
+		// 每个IP单独一行
+		for _, ip := range networkInfo.IPv4Addrs {
+			common.LogSuccess(fmt.Sprintf("NetInfo %s   -> %s", target, ip))
+		}
 	}
 
 	return &ScanResult{
