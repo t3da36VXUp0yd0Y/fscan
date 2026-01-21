@@ -36,7 +36,8 @@ type AdaptivePool struct {
 
 // NewAdaptivePool 创建自适应线程池
 func NewAdaptivePool(size int, fn func(interface{}), state *common.State) (*AdaptivePool, error) {
-	pool, err := ants.NewPoolWithFunc(size, fn, ants.WithPreAlloc(true))
+	// 移除 WithPreAlloc(true)，在大规模扫描时预分配可能导致内存问题
+	pool, err := ants.NewPoolWithFunc(size, fn)
 	if err != nil {
 		return nil, err
 	}
