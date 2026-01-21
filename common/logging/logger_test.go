@@ -137,14 +137,14 @@ func TestLogger_AllLevels(t *testing.T) {
 			logFunc: logger.Debug,
 			message: "debug message",
 			wantMsg: "debug message",
-			wantPfx: PrefixDefault,
+			wantPfx: PrefixDebug,
 		},
 		{
 			name:    "Base级别",
 			logFunc: logger.Base,
 			message: "base message",
 			wantMsg: "base message",
-			wantPfx: PrefixDefault,
+			wantPfx: PrefixInfo, // Base 已废弃，默认使用 Info 前缀
 		},
 		{
 			name:    "Info级别",

@@ -237,9 +237,9 @@ func (b *BaseScanStrategy) LogScanStart() {
 	// 仅在本地/Web等特殊模式下显示
 	switch b.filterType {
 	case FilterLocal:
-		common.LogBase(i18n.GetText("start_local_scan"))
+		common.LogInfo(i18n.GetText("start_local_scan"))
 	case FilterWeb:
-		common.LogBase(i18n.GetText("start_web_scan"))
+		common.LogInfo(i18n.GetText("start_web_scan"))
 	}
 }
 

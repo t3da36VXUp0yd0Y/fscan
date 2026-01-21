@@ -137,7 +137,7 @@ func probeWithICMP(hostslist []string, chanHosts chan string, aliveHosts *[]stri
 	}
 
 	common.LogError(i18n.Tr("icmp_listen_failed", err))
-	common.LogBase(i18n.GetText("trying_no_listen_icmp"))
+	common.LogInfo(i18n.GetText("trying_no_listen_icmp"))
 
 	// 尝试无监听ICMP探测
 	conn2, err := net.DialTimeout("ip4:icmp", "127.0.0.1", 3*time.Second)
@@ -147,9 +147,9 @@ func probeWithICMP(hostslist []string, chanHosts chan string, aliveHosts *[]stri
 		return
 	}
 
-	common.LogBase(i18n.Tr("icmp_connect_failed", err))
-	common.LogBase(i18n.GetText("insufficient_privileges"))
-	common.LogBase(i18n.GetText("switching_to_ping"))
+	common.LogError(i18n.Tr("icmp_connect_failed", err))
+	common.LogError(i18n.GetText("insufficient_privileges"))
+	common.LogInfo(i18n.GetText("switching_to_ping"))
 
 	// 降级使用ping探测
 	RunPing(hostslist, chanHosts, livewg)

@@ -66,9 +66,6 @@ func InitLogger() {
 // LogDebug 输出调试日志
 func LogDebug(msg string) { getGlobalLogger().Debug(msg) }
 
-// LogBase 输出基础日志
-func LogBase(msg string) { getGlobalLogger().Base(msg) }
-
 // LogInfo 输出信息日志
 func LogInfo(msg string) { getGlobalLogger().Info(msg) }
 

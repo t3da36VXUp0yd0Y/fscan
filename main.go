@@ -59,7 +59,7 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		common.LogBase(i18n.GetText("received_exit_signal"))
+		common.LogInfo(i18n.GetText("received_exit_signal"))
 		_ = common.Cleanup() // 确保结果写入磁盘
 		os.Exit(130)         // 128 + SIGINT(2) = 130，标准的中断退出码
 	}()

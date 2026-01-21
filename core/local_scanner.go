@@ -24,9 +24,9 @@ func NewLocalScanStrategy() *LocalScanStrategy {
 func (s *LocalScanStrategy) LogPluginInfo(config *common.Config) {
 	localPlugin := config.LocalPlugin
 	if localPlugin != "" {
-		common.LogBase(i18n.Tr("local_plugin_info", localPlugin))
+		common.LogInfo(i18n.Tr("local_plugin_info", localPlugin))
 	} else {
-		common.LogBase(i18n.GetText("local_plugin_not_specified"))
+		common.LogError(i18n.GetText("local_plugin_not_specified"))
 	}
 }
 
@@ -54,7 +54,7 @@ func (s *LocalScanStrategy) Execute(config *common.Config, state *common.State, 
 	// 验证本地插件是否存在
 	if config.LocalPlugin != "" {
 		if !plugins.Exists(config.LocalPlugin) {
-			common.LogBase(i18n.Tr("local_plugin_not_found", config.LocalPlugin))
+			common.LogError(i18n.Tr("local_plugin_not_found", config.LocalPlugin))
 			return
 		}
 	}

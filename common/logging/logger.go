@@ -201,15 +201,17 @@ func (l *Logger) formatElapsedTime(elapsed time.Duration) string {
 // getLevelPrefix 获取日志级别前缀
 func (l *Logger) getLevelPrefix(level LogLevel) string {
 	switch level {
-	case LevelVuln:
-		return PrefixVuln
-	case LevelSuccess:
-		return PrefixSuccess
+	case LevelDebug:
+		return PrefixDebug
 	case LevelInfo:
 		return PrefixInfo
+	case LevelSuccess:
+		return PrefixSuccess
+	case LevelVuln:
+		return PrefixVuln
 	case LevelError:
 		return PrefixError
 	default:
-		return PrefixDefault
+		return PrefixInfo // 默认使用 Info 前缀
 	}
 }

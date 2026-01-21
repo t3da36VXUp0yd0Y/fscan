@@ -96,21 +96,21 @@ func RunScan(info common.HostInfo, config *common.Config, state *common.State) {
 	// 检查是否有活跃的连接需要维持
 	if state.IsReverseShellActive() || state.IsSocks5ProxyActive() || state.IsForwardShellActive() {
 		if state.IsReverseShellActive() {
-			common.LogBase(i18n.GetText("active_reverse_shell"))
+			common.LogInfo(i18n.GetText("active_reverse_shell"))
 		}
 		if state.IsSocks5ProxyActive() {
-			common.LogBase(i18n.GetText("active_socks5_proxy"))
+			common.LogInfo(i18n.GetText("active_socks5_proxy"))
 		}
 		if state.IsForwardShellActive() {
-			common.LogBase(i18n.GetText("active_forward_shell"))
+			common.LogInfo(i18n.GetText("active_forward_shell"))
 		}
-		common.LogBase(i18n.GetText("press_ctrl_c_exit"))
+		common.LogInfo(i18n.GetText("press_ctrl_c_exit"))
 
 		// 优雅等待信号
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		<-sigChan
-		common.LogBase(i18n.GetText("received_exit_signal"))
+		common.LogInfo(i18n.GetText("received_exit_signal"))
 	}
 
 	// 完成扫描
@@ -125,7 +125,7 @@ func finishScan(config *common.Config, state *common.State) {
 	}
 
 	// 输出扫描完成信息
-	common.LogBase(i18n.Tr("scan_task_complete", time.Since(state.GetStartTime()).Round(time.Millisecond), state.GetNum()))
+	common.LogInfo(i18n.Tr("scan_task_complete", time.Since(state.GetStartTime()).Round(time.Millisecond), state.GetNum()))
 
 	// 输出性能统计 JSON（如果启用）
 	if config.Output.PerfStats {

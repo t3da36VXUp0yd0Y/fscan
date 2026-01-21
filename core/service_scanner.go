@@ -70,12 +70,12 @@ func (s *ServiceScanStrategy) showPluginsForSpecifiedPorts(config *common.Config
 	if len(applicablePlugins) > 0 {
 		pluginStr := formatPluginList(applicablePlugins)
 		if isCustomMode {
-			common.LogBase(i18n.Tr("service_plugin_custom", pluginStr))
+			common.LogInfo(i18n.Tr("service_plugin_custom", pluginStr))
 		} else {
-			common.LogBase(i18n.Tr("service_plugin_info", pluginStr))
+			common.LogInfo(i18n.Tr("service_plugin_info", pluginStr))
 		}
 	} else {
-		common.LogBase(i18n.GetText("service_plugin_none"))
+		common.LogInfo(i18n.GetText("service_plugin_none"))
 	}
 }
 
@@ -201,9 +201,9 @@ func (s *ServiceScanStrategy) LogVulnerabilityPluginInfo(targets []common.HostIn
 
 	// 输出插件信息
 	if len(servicePlugins) > 0 {
-		common.LogBase(i18n.Tr("service_plugin_info", strings.Join(servicePlugins, ", ")))
+		common.LogInfo(i18n.Tr("service_plugin_info", strings.Join(servicePlugins, ", ")))
 	} else {
-		common.LogBase(i18n.GetText("scan_no_service_plugins"))
+		common.LogInfo(i18n.GetText("scan_no_service_plugins"))
 	}
 }
 
@@ -227,7 +227,7 @@ func (s *ServiceScanStrategy) discoverTargets(hostInput string, baseInfo common.
 		// 主机存活检测
 		if s.shouldPerformLivenessCheck(hosts, config) {
 			hosts = CheckLive(hosts, false, config, state)
-			common.LogBase(i18n.Tr("alive_hosts_count_info", len(hosts)))
+			common.LogInfo(i18n.Tr("alive_hosts_count_info", len(hosts)))
 		}
 
 		// 端口扫描
@@ -253,7 +253,7 @@ func (s *ServiceScanStrategy) discoverAlivePorts(hosts []string, config *common.
 	hostPorts := state.GetHostPorts()
 	if len(hostPorts) > 0 {
 		alivePorts = hostPorts
-		common.LogBase(i18n.Tr("alive_ports_count", len(alivePorts)))
+		common.LogInfo(i18n.Tr("alive_ports_count", len(alivePorts)))
 		state.ClearHostPorts()
 		return alivePorts
 	}

@@ -283,7 +283,7 @@ func checkParameterConflicts() error {
 
 	// 检查 -ao 和 -m icmp 同时指定的情况（向后兼容提示）
 	if fv.AliveOnly && fv.ScanMode == "icmp" {
-		LogBase(i18n.GetText("param_conflict_ao_icmp_both"))
+		LogInfo(i18n.GetText("param_conflict_ao_icmp_both"))
 	}
 
 	// 检查本地插件参数

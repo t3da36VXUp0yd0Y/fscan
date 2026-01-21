@@ -85,7 +85,7 @@ func StartServer(port int) error {
 
 	go func() {
 		<-quit
-		common.LogBase(i18n.GetText("web_shutting_down"))
+		common.LogInfo(i18n.GetText("web_shutting_down"))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -98,7 +98,7 @@ func StartServer(port int) error {
 
 	// 启动服务器
 	common.LogSuccess(i18n.Tr("web_server_started", port))
-	common.LogBase(fmt.Sprintf("http://localhost:%d", port))
+	fmt.Printf("    http://localhost:%d\n", port)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)

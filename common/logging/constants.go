@@ -60,16 +60,16 @@ const (
 // =============================================================================
 
 const (
+	// PrefixDebug 调试日志前缀
+	PrefixDebug = "[.]"
+	// PrefixInfo 信息日志前缀
+	PrefixInfo = "[*]"
 	// PrefixSuccess 成功日志前缀
 	PrefixSuccess = "[+]"
 	// PrefixVuln 漏洞/重要发现前缀
 	PrefixVuln = "[!]"
-	// PrefixInfo 信息日志前缀
-	PrefixInfo = "[*]"
 	// PrefixError 错误日志前缀
 	PrefixError = "[-]"
-	// PrefixDefault 默认日志前缀
-	PrefixDefault = "   "
 )
 
 // =============================================================================

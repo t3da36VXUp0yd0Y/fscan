@@ -213,7 +213,7 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 
 	// 检查代理可靠性，如果存在全回显问题则警告
 	if common.IsProxyEnabled() && !common.IsProxyReliable() {
-		common.LogBase("[!] 检测到代理存在全回显问题，端口扫描结果可能不准确")
+		common.LogError("检测到代理存在全回显问题，端口扫描结果可能不准确")
 	}
 
 	// 创建流式迭代器（O(1) 内存，端口喷洒策略）
@@ -226,12 +226,12 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 
 	// 大规模扫描警告和线程数自动调整
 	if totalTasks > 100000 {
-		common.LogBase(fmt.Sprintf("[*] 大规模扫描: %d 个目标 (%d主机 × %d端口)", totalTasks, len(hosts), len(portList)))
+		common.LogInfo(fmt.Sprintf("大规模扫描: %d 个目标 (%d主机 × %d端口)", totalTasks, len(hosts), len(portList)))
 		// 如果任务数超过100万且线程数大于300，自动降低线程数
 		if totalTasks > 1000000 && threadNum > 300 {
 			oldThreadNum := threadNum
 			threadNum = 300
-			common.LogBase(fmt.Sprintf("[*] 自动调整线程数: %d -> %d (大规模扫描优化)", oldThreadNum, threadNum))
+			common.LogInfo(fmt.Sprintf("自动调整线程数: %d -> %d (大规模扫描优化)", oldThreadNum, threadNum))
 		}
 	}
 
@@ -285,7 +285,7 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 		common.FinishProgressBar()
 	}
 
-	common.LogBase(i18n.Tr("port_scan_complete", count))
+	common.LogInfo(i18n.Tr("port_scan_complete", count))
 
 	// 检查扫描失败率，如果过高则警告用户
 	resourceErrors := state.GetResourceExhaustedCount()

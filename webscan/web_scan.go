@@ -304,7 +304,7 @@ func loadPocsConcurrently(pocFiles []string, isEmbedded bool, pocPath string) {
 	}
 
 	wg.Wait()
-	common.LogBase(i18n.Tr("poc_load_complete", pocCount, successCount, failCount))
+	common.LogInfo(i18n.Tr("poc_load_complete", pocCount, successCount, failCount))
 }
 
 // directoryExists 检查目录是否存在

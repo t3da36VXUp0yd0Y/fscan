@@ -49,7 +49,7 @@ func (p *Socks5ProxyPlugin) Scan(ctx context.Context, info *common.HostInfo, con
 	output.WriteString(fmt.Sprintf("监听端口: %d\n", port))
 	output.WriteString(fmt.Sprintf("平台: %s\n\n", runtime.GOOS))
 
-	common.LogBase(i18n.Tr("socks5_starting", port))
+	common.LogInfo(i18n.Tr("socks5_starting", port))
 
 	// 启动SOCKS5代理服务器
 	err := p.startSocks5Server(ctx, port, state)
@@ -96,7 +96,7 @@ func (p *Socks5ProxyPlugin) startSocks5Server(ctx context.Context, port int, sta
 	for {
 		select {
 		case <-ctx.Done():
-			common.LogBase(i18n.GetText("socks5_cancelled"))
+			common.LogInfo(i18n.GetText("socks5_cancelled"))
 			return ctx.Err()
 		default:
 		}
