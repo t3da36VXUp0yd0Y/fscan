@@ -130,25 +130,3 @@ func Uint16BE(d0, d1 uint8) uint16 {
 
 	return binary.BigEndian.Uint16(b)
 }
-
-func RGB565ToRGB(data uint16) (r, g, b uint8) {
-	r = uint8((data & 0xF800) >> 8)
-	r |= r >> 5
-	g = uint8((data & 0x07E0) >> 3)
-	g |= g >> 6
-	b = uint8((data & 0x001F) << 3)
-	b |= b >> 5
-
-	return
-}
-
-func RGB555ToRGB(data uint16) (r, g, b uint8) {
-	r = uint8((data & 0x7C00) >> 7)
-	r |= r >> 5
-	g = uint8((data & 0x03E0) >> 2)
-	g |= g >> 5
-	b = uint8((data & 0x001F) << 3)
-	b |= b >> 5
-
-	return
-}

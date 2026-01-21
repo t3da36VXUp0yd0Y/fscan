@@ -383,8 +383,6 @@ func (c *Client) recvPDU(s []byte) {
 				p := up.Udata
 				if up.UpdateType == FASTPATH_UPDATETYPE_BITMAP {
 					c.Emit("bitmap", p.(*BitmapUpdateDataPDU).Rectangles)
-				} else if up.UpdateType == FASTPATH_UPDATETYPE_ORDERS {
-					c.Emit("orders", p.(*FastPathOrdersPDU).OrderPdus)
 				}
 			}
 			if d.Header.PDUType2 == PDUTYPE2_SAVE_SESSION_INFO {
@@ -445,8 +443,6 @@ func (c *Client) RecvFastPath(secFlag byte, s []byte) {
 			c.Emit("bitmap", p.Data.(*FastPathBitmapUpdateDataPDU).Rectangles)
 		} else if updateCode == FASTPATH_UPDATETYPE_COLOR {
 			c.Emit("color", p.Data.(*FastPathColorPdu))
-		} else if updateCode == FASTPATH_UPDATETYPE_ORDERS {
-			c.Emit("orders", p.Data.(*FastPathOrdersPDU).OrderPdus)
 		}
 	}
 }

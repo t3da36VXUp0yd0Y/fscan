@@ -909,7 +909,8 @@ func readFastPathUpdatePDU(r io.Reader, code uint8) (*FastPathUpdatePDU, error) 
 	//glog.Debugf("FastPathPDU type %s(0x%x)", FastPathUpdateType(code), code)
 	switch code {
 	case FASTPATH_UPDATETYPE_ORDERS:
-		d = &FastPathOrdersPDU{}
+		// 绘图指令，认证检测不需要处理
+		return nil, errors.New(fmt.Sprintf("Unsupport FastPathPDU type 0x%x", code))
 	case FASTPATH_UPDATETYPE_BITMAP:
 		d = &FastPathBitmapUpdateDataPDU{}
 	case FASTPATH_UPDATETYPE_PALETTE:
