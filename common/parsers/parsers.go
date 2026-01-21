@@ -112,7 +112,7 @@ func parseHostString(host string) ([]string, error) {
 				return nil, fmt.Errorf("CIDR解析失败 %s: %w", h, err)
 			}
 			hosts = append(hosts, cidrHosts...)
-		case strings.Contains(h, "-") && !strings.Contains(h, ":"):
+		case strings.Contains(h, "-") && !strings.Contains(h, ":") && looksLikeIPRange(h):
 			rangeHosts, err := parseIPRangeString(h, SimpleMaxHosts)
 			if err != nil {
 				return nil, fmt.Errorf("IP范围解析失败 %s: %w", h, err)
@@ -314,6 +314,19 @@ func parseIPCIDR(cidr string, maxTargets int) ([]string, error) {
 	}
 
 	return ips, nil
+}
+
+// looksLikeIPRange 检查字符串是否像IP范围格式
+// 如 192.168.1.1-100 或 192.168.1.1-192.168.1.100
+// 而不是像 111-555.sss.com 这种域名
+func looksLikeIPRange(s string) bool {
+	idx := strings.Index(s, "-")
+	if idx == -1 {
+		return false
+	}
+	// 检查 - 前面的部分是否是有效IP
+	startPart := s[:idx]
+	return net.ParseIP(startPart) != nil
 }
 
 // parseIPRangeString 解析IP范围字符串

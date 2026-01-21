@@ -444,6 +444,16 @@ func TestParseIP_SingleIP(t *testing.T) {
 			"example.com",
 			[]string{"example.com"},
 		},
+		{
+			"带横杠的域名",
+			"111-555.sss.com",
+			[]string{"111-555.sss.com"},
+		},
+		{
+			"多段横杠域名",
+			"my-test-server.example.com",
+			[]string{"my-test-server.example.com"},
+		},
 	}
 
 	for _, tt := range tests {
