@@ -790,46 +790,46 @@ func TestExcludeHosts(t *testing.T) {
 	hosts := []string{"host1", "host2", "host3", "host4"}
 	exclude := []string{"host2", "host4"}
 
-	result := excludeHosts(hosts, exclude)
+	result := excludeFromList(hosts, exclude)
 	expected := []string{"host1", "host3"}
 
 	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("excludeHosts = %v, want %v", result, expected)
+		t.Errorf("excludeFromList = %v, want %v", result, expected)
 	}
 
-	t.Logf("✓ excludeHosts: %d → %d", len(hosts), len(result))
+	t.Logf("✓ excludeFromList: %d → %d", len(hosts), len(result))
 }
 
 // TestExcludeHosts_EmptyExclude 测试空排除列表
 func TestExcludeHosts_EmptyExclude(t *testing.T) {
 	hosts := []string{"host1", "host2"}
-	result := excludeHosts(hosts, []string{})
+	result := excludeFromList(hosts, []string{})
 
 	if !reflect.DeepEqual(result, hosts) {
-		t.Errorf("excludeHosts(空排除列表) 应该返回原列表")
+		t.Errorf("excludeFromList(空排除列表) 应该返回原列表")
 	}
 }
 
 // TestRemoveDuplicates 测试去重
 func TestRemoveDuplicates(t *testing.T) {
 	input := []string{"a", "b", "a", "c", "b", "d"}
-	result := removeDuplicates(input)
+	result := removeDuplicateStrings(input)
 
 	// 验证无重复
 	seen := make(map[string]bool)
 	for _, item := range result {
 		if seen[item] {
-			t.Errorf("removeDuplicates 结果包含重复项: %s", item)
+			t.Errorf("removeDuplicateStrings 结果包含重复项: %s", item)
 		}
 		seen[item] = true
 	}
 
 	// 验证长度
 	if len(result) != 4 {
-		t.Errorf("removeDuplicates 返回%d项，期望4项", len(result))
+		t.Errorf("removeDuplicateStrings 返回%d项，期望4项", len(result))
 	}
 
-	t.Logf("✓ removeDuplicates: %d → %d", len(input), len(result))
+	t.Logf("✓ removeDuplicateStrings: %d → %d", len(input), len(result))
 }
 
 // TestRemoveDuplicatePorts 测试端口去重

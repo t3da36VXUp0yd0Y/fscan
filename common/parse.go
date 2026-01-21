@@ -4,34 +4,6 @@ import (
 	"github.com/shadow1ng/fscan/common/logging"
 )
 
-/*
-parse.go - 解析相关工具函数
-
-重构后只保留：
-- RemoveDuplicate    - 字符串去重
-- applyLogLevel      - 日志级别应用
-- 辅助函数
-*/
-
-// RemoveDuplicate 去重函数
-func RemoveDuplicate(old []string) []string {
-	if len(old) <= 1 {
-		return old
-	}
-
-	temp := make(map[string]struct{}, len(old))
-	result := make([]string, 0, len(old))
-
-	for _, item := range old {
-		if _, exists := temp[item]; !exists {
-			temp[item] = struct{}{}
-			result = append(result, item)
-		}
-	}
-
-	return result
-}
-
 // logLevelMap 日志级别字符串到级别的映射
 var logLevelMap = map[string]logging.LogLevel{
 	LogLevelAll:             logging.LevelAll,

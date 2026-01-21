@@ -487,15 +487,3 @@ func removeDuplicatePorts(slice []int) []int {
 }
 
 // =============================================================================
-// 导出别名（供测试使用）
-// =============================================================================
-
-// excludeHosts 是 excludeFromList 的别名（供测试兼容）
-func excludeHosts(hosts, excludeList []string) []string {
-	return excludeFromList(hosts, excludeList)
-}
-
-// removeDuplicates 是 removeDuplicateStrings 的别名（供测试兼容）
-func removeDuplicates(slice []string) []string {
-	return removeDuplicateStrings(slice)
-}
