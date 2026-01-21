@@ -2,7 +2,9 @@ package core
 
 import (
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 )
 
 // TestCheckSum 测试ICMP校验和计算（RFC 1071算法）
@@ -482,6 +484,117 @@ func TestMakemsg(t *testing.T) {
 			t.Log("警告：不同主机可能产生相同标识符（取决于前两字符）")
 		}
 	})
+}
+
+// TestWaitAdaptive 测试自适应等待算法
+func TestWaitAdaptive(t *testing.T) {
+	t.Run("全部响应-立即结束", func(t *testing.T) {
+		hostslist := []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"}
+		aliveHosts := []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"} // 全部存活
+		var mu sync.Mutex
+
+		start := time.Now()
+		waitAdaptive(hostslist, &aliveHosts, &mu)
+		elapsed := time.Since(start)
+
+		// 全部响应应该在 1 个检查周期内结束 (~100ms)
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("全部响应后应快速结束，实际耗时 %v", elapsed)
+		}
+	})
+
+	t.Run("无响应-自适应提前结束", func(t *testing.T) {
+		hostslist := make([]string, 10) // 10 个主机
+		for i := range hostslist {
+			hostslist[i] = fmt.Sprintf("192.168.1.%d", i+1)
+		}
+		aliveHosts := []string{} // 无响应
+		var mu sync.Mutex
+
+		start := time.Now()
+		waitAdaptive(hostslist, &aliveHosts, &mu)
+		elapsed := time.Since(start)
+
+		// 无响应时：lastChangeTime = start
+		// 在 minWait(1s) 后，time.Since(lastChangeTime) >= 1s > stableThreshold(500ms)
+		// 所以会在约 1s 时提前结束（这是自适应优化的效果）
+		// 相比原来的固定 3s，节省了约 2s
+		if elapsed < 900*time.Millisecond || elapsed > 1300*time.Millisecond {
+			t.Errorf("无响应时应在约 1s 提前结束，实际耗时 %v", elapsed)
+		}
+	})
+
+	t.Run("部分响应后稳定-提前结束", func(t *testing.T) {
+		hostslist := make([]string, 100)
+		for i := range hostslist {
+			hostslist[i] = fmt.Sprintf("192.168.1.%d", i+1)
+		}
+		// 模拟 50% 响应
+		aliveHosts := make([]string, 50)
+		for i := range aliveHosts {
+			aliveHosts[i] = fmt.Sprintf("192.168.1.%d", i+1)
+		}
+		var mu sync.Mutex
+
+		start := time.Now()
+		waitAdaptive(hostslist, &aliveHosts, &mu)
+		elapsed := time.Since(start)
+
+		// 响应已稳定（不再变化），应该在 minWait + stableThreshold 后结束
+		// 即约 1.5s，而不是 3s
+		if elapsed > 2*time.Second {
+			t.Errorf("响应稳定后应提前结束，实际耗时 %v", elapsed)
+		}
+	})
+
+	t.Run("持续响应-等待完成", func(t *testing.T) {
+		hostslist := make([]string, 10)
+		for i := range hostslist {
+			hostslist[i] = fmt.Sprintf("192.168.1.%d", i+1)
+		}
+		aliveHosts := []string{}
+		var mu sync.Mutex
+
+		// 模拟持续响应：每 200ms 增加一个存活主机
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := 0; i < 10; i++ {
+				time.Sleep(200 * time.Millisecond)
+				mu.Lock()
+				aliveHosts = append(aliveHosts, fmt.Sprintf("192.168.1.%d", i+1))
+				mu.Unlock()
+			}
+		}()
+
+		start := time.Now()
+		waitAdaptive(hostslist, &aliveHosts, &mu)
+		elapsed := time.Since(start)
+		<-done // 等待 goroutine 结束
+
+		// 10 个主机 * 200ms = 2s，全部响应后应立即结束
+		// 总耗时应该在 2s 左右
+		if elapsed < 1800*time.Millisecond || elapsed > 2500*time.Millisecond {
+			t.Errorf("持续响应时应等待全部完成，实际耗时 %v", elapsed)
+		}
+	})
+}
+
+// BenchmarkWaitAdaptive 基准测试自适应等待性能
+func BenchmarkWaitAdaptive(b *testing.B) {
+	hostslist := make([]string, 100)
+	for i := range hostslist {
+		hostslist[i] = fmt.Sprintf("192.168.1.%d", i+1)
+	}
+	// 全部响应场景
+	aliveHosts := make([]string, 100)
+	copy(aliveHosts, hostslist)
+	var mu sync.Mutex
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		waitAdaptive(hostslist, &aliveHosts, &mu)
+	}
 }
 
 // BenchmarkCheckSum 基准测试校验和性能

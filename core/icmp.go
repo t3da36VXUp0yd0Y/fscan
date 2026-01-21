@@ -202,6 +202,77 @@ func printAliveStats(aliveHosts []string, hostslist []string) {
 	}
 }
 
+// ICMP 自适应等待参数
+const (
+	icmpCheckInterval   = 100 * time.Millisecond // 检查间隔，避免 CPU 空转
+	icmpMinWaitTime     = 1 * time.Second        // 最小等待时间，确保基础响应收集
+	icmpStableThreshold = 500 * time.Millisecond // 无新响应稳定阈值，超过此时间无新响应则提前结束
+)
+
+// waitAdaptive 自适应等待 ICMP 响应
+// 算法：监控响应增量，连续一段时间无新响应则提前结束
+// 保守原则：
+//   - 必须等待最小时间 (1s)，确保基础响应收集
+//   - 只有"连续 500ms 无新响应"才提前结束
+//   - 保留原有最大等待时间作为兜底
+func waitAdaptive(hostslist []string, aliveHosts *[]string, aliveHostsMu *sync.Mutex) {
+	totalHosts := len(hostslist)
+
+	// 根据主机数量设置最大超时时间（保持原有逻辑作为兜底）
+	maxWait := 6 * time.Second
+	if totalHosts <= 256 {
+		maxWait = 3 * time.Second
+	}
+
+	start := time.Now()
+	lastAliveCount := 0
+	lastChangeTime := start
+
+	for {
+		time.Sleep(icmpCheckInterval) // 避免 CPU 空转
+
+		// 读取当前存活数
+		aliveHostsMu.Lock()
+		aliveCount := len(*aliveHosts)
+		aliveHostsMu.Unlock()
+
+		elapsed := time.Since(start)
+
+		// 条件1：所有主机都已响应，立即结束
+		if aliveCount >= totalHosts {
+			common.LogDebug(fmt.Sprintf("[ICMP] 全部响应，耗时 %v", elapsed.Round(time.Millisecond)))
+			break
+		}
+
+		// 条件2：超过最大等待时间，兜底结束
+		if elapsed >= maxWait {
+			common.LogDebug(fmt.Sprintf("[ICMP] 达到最大等待时间 %v，存活 %d/%d", maxWait, aliveCount, totalHosts))
+			break
+		}
+
+		// 条件3：自适应提前结束
+		// 必须满足：已过最小等待时间 + 连续一段时间没有新响应
+		if elapsed >= icmpMinWaitTime {
+			if aliveCount > lastAliveCount {
+				// 有新响应，更新状态
+				lastChangeTime = time.Now()
+				lastAliveCount = aliveCount
+			} else if time.Since(lastChangeTime) >= icmpStableThreshold {
+				// 连续 500ms 没有新响应，认为响应已稳定，提前结束
+				common.LogDebug(fmt.Sprintf("[ICMP] 响应稳定，提前结束，耗时 %v，存活 %d/%d",
+					elapsed.Round(time.Millisecond), aliveCount, totalHosts))
+				break
+			}
+		} else {
+			// 最小等待期内，持续更新状态
+			if aliveCount > lastAliveCount {
+				lastChangeTime = time.Now()
+				lastAliveCount = aliveCount
+			}
+		}
+	}
+}
+
 // RunIcmp1 使用ICMP批量探测主机存活(监听模式)
 func RunIcmp1(hostslist []string, conn *icmp.PacketConn, chanHosts chan string, aliveHosts *[]string, aliveHostsMu *sync.Mutex, config *common.Config, state *common.State, livewg *sync.WaitGroup) {
 	// 使用atomic.Bool保证并发安全
@@ -272,30 +343,10 @@ func RunIcmp1(hostslist []string, conn *icmp.PacketConn, chanHosts chan string, 
 		_, _ = conn.WriteTo(IcmpByte, dst)
 	}
 
-	// 等待响应
-	start := time.Now()
-	for {
-		// 加锁读取aliveHosts长度
-		aliveHostsMu.Lock()
-		aliveCount := len(*aliveHosts)
-		aliveHostsMu.Unlock()
-
-		// 所有主机都已响应则退出
-		if aliveCount == len(hostslist) {
-			break
-		}
-
-		// 根据主机数量设置超时时间
-		since := time.Since(start)
-		wait := time.Second * 6
-		if len(hostslist) <= 256 {
-			wait = time.Second * 3
-		}
-
-		if since > wait {
-			break
-		}
-	}
+	// 自适应等待响应
+	// 算法：监控响应增量，连续一段时间无新响应则提前结束
+	// 保守原则：保留最大等待时间兜底，确保不漏掉慢响应主机
+	waitAdaptive(hostslist, aliveHosts, aliveHostsMu)
 
 	endflag.Store(true)
 	_ = conn.Close()
