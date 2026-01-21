@@ -98,19 +98,10 @@ func (p *MSSQLPlugin) doMSSQLAuth(ctx context.Context, info *common.HostInfo, cr
 
 	return &AuthResult{
 		Success:   true,
-		Conn:      &mssqlDBWrapper{db},
+		Conn:      &SQLDBWrapper{db},
 		ErrorType: ErrorTypeUnknown,
 		Error:     nil,
 	}
-}
-
-// mssqlDBWrapper 包装 sql.DB 以实现 io.Closer
-type mssqlDBWrapper struct {
-	*sql.DB
-}
-
-func (w *mssqlDBWrapper) Close() error {
-	return w.DB.Close()
 }
 
 // classifyMSSQLErrorType MSSQL错误分类

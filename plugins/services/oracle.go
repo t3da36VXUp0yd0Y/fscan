@@ -106,7 +106,7 @@ func (p *OraclePlugin) doOracleAuth(ctx context.Context, info *common.HostInfo, 
 
 		return &AuthResult{
 			Success:   true,
-			Conn:      &oracleDBWrapper{db},
+			Conn:      &SQLDBWrapper{db},
 			ErrorType: ErrorTypeUnknown,
 			Error:     nil,
 		}
@@ -118,15 +118,6 @@ func (p *OraclePlugin) doOracleAuth(ctx context.Context, info *common.HostInfo, 
 		ErrorType: ErrorTypeNetwork,
 		Error:     fmt.Errorf("无法连接到Oracle数据库"),
 	}
-}
-
-// oracleDBWrapper 包装 sql.DB 以实现 io.Closer
-type oracleDBWrapper struct {
-	*sql.DB
-}
-
-func (w *oracleDBWrapper) Close() error {
-	return w.DB.Close()
 }
 
 // classifyOracleErrorType Oracle错误分类

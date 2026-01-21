@@ -104,19 +104,10 @@ func (p *PostgreSQLPlugin) doPostgreSQLAuth(ctx context.Context, info *common.Ho
 
 	return &AuthResult{
 		Success:   true,
-		Conn:      &pgDBWrapper{db},
+		Conn:      &SQLDBWrapper{db},
 		ErrorType: ErrorTypeUnknown,
 		Error:     nil,
 	}
-}
-
-// pgDBWrapper 包装 sql.DB 以实现 io.Closer
-type pgDBWrapper struct {
-	*sql.DB
-}
-
-func (w *pgDBWrapper) Close() error {
-	return w.DB.Close()
 }
 
 // classifyPostgreSQLErrorType PostgreSQL错误分类

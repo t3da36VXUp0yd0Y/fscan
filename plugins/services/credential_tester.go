@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"sync"
@@ -368,4 +369,18 @@ func matchIgnoreCase(a, b string) bool {
 		}
 	}
 	return true
+}
+
+// =============================================================================
+// 通用数据库连接包装
+// =============================================================================
+
+// SQLDBWrapper 包装 sql.DB 以实现 io.Closer
+// 用于 MySQL、PostgreSQL、MSSQL、Oracle 等数据库插件的连接返回
+type SQLDBWrapper struct {
+	*sql.DB
+}
+
+func (w *SQLDBWrapper) Close() error {
+	return w.DB.Close()
 }

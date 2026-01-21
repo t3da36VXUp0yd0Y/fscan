@@ -104,22 +104,12 @@ func (p *MySQLPlugin) doMySQLAuth(ctx context.Context, info *common.HostInfo, cr
 
 	state.IncrementTCPSuccessPacketCount()
 
-	// MySQL 使用 sql.DB，包装为 io.Closer
 	return &AuthResult{
 		Success:   true,
-		Conn:      &sqlDBWrapper{db},
+		Conn:      &SQLDBWrapper{db},
 		ErrorType: ErrorTypeUnknown,
 		Error:     nil,
 	}
-}
-
-// sqlDBWrapper 包装 sql.DB 以实现 io.Closer
-type sqlDBWrapper struct {
-	*sql.DB
-}
-
-func (w *sqlDBWrapper) Close() error {
-	return w.DB.Close()
 }
 
 // classifyMySQLErrorType MySQL错误分类
