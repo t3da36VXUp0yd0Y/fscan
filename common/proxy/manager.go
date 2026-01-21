@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,7 @@ import (
 // manager 代理管理器实现
 type manager struct {
 	config *ProxyConfig
-	stats  *ProxyStats // 暂时保留但不使用
+	stats  *ProxyStats
 	mu     sync.RWMutex
 
 	// 连接池
@@ -404,7 +405,7 @@ func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 		// 读取超时或错误 = 目标不可达，但代理行为正常
 		// 说明代理没有伪造响应
 		errStr := readErr.Error()
-		if contains(errStr, "timeout", "i/o timeout") {
+		if strings.Contains(errStr, "timeout") {
 			// 超时可能意味着代理接受了连接但没有伪造响应
 			// 这是边界情况，暂时认为不可靠
 			return false
@@ -419,19 +420,5 @@ func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 	}
 
 	// 代理接受连接且不报错也不响应 = 全回显行为
-	return false
-}
-
-// contains 检查字符串是否包含任一子串
-func contains(s string, substrs ...string) bool {
-	for _, sub := range substrs {
-		if len(sub) > 0 && len(s) >= len(sub) {
-			for i := 0; i <= len(s)-len(sub); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-		}
-	}
 	return false
 }
