@@ -109,6 +109,63 @@ func (f *failedPortCollector) Count() int {
 	return count
 }
 
+// preResolveDomains 预解析域名列表
+// 将域名解析为 IP，解析失败的域名保留原样
+// 这样可以避免扫描过程中大量并发 DNS 查询导致系统资源耗尽
+func preResolveDomains(hosts []string, timeout time.Duration) []string {
+	if len(hosts) == 0 {
+		return hosts
+	}
+
+	// 检查是否有需要解析的域名
+	needResolve := false
+	for _, host := range hosts {
+		if net.ParseIP(host) == nil {
+			needResolve = true
+			break
+		}
+	}
+
+	if !needResolve {
+		return hosts
+	}
+
+	common.LogDebug(fmt.Sprintf("[DNS] 开始预解析 %d 个主机", len(hosts)))
+
+	result := make([]string, 0, len(hosts))
+	resolved := 0
+	failed := 0
+
+	for _, host := range hosts {
+		// 如果已经是 IP，直接添加
+		if net.ParseIP(host) != nil {
+			result = append(result, host)
+			continue
+		}
+
+		// 尝试解析域名
+		ips, err := net.LookupHost(host)
+		if err != nil || len(ips) == 0 {
+			// 解析失败，保留原域名（后续连接时会再次尝试解析）
+			common.LogDebug(fmt.Sprintf("[DNS] 解析失败: %s - %v", host, err))
+			result = append(result, host)
+			failed++
+			continue
+		}
+
+		// 使用第一个解析结果
+		result = append(result, ips[0])
+		resolved++
+		common.LogDebug(fmt.Sprintf("[DNS] %s -> %s", host, ips[0]))
+	}
+
+	if resolved > 0 || failed > 0 {
+		common.LogDebug(fmt.Sprintf("[DNS] 预解析完成: 成功=%d, 失败=%d", resolved, failed))
+	}
+
+	return result
+}
+
 // estimateScanTime 估算扫描时间
 // 参数: totalTasks - 总任务数, threads - 线程数, timeout - 超时时间(秒)
 // 返回: 估算的扫描时间(秒)
@@ -134,12 +191,18 @@ func estimateScanTime(totalTasks int, threads int, timeout int64) int64 {
 // EnhancedPortScan 高性能端口扫描函数
 // 使用滑动窗口调度 + 自适应线程池 + 流式迭代器
 func EnhancedPortScan(hosts []string, ports string, timeout int64, config *common.Config, state *common.State) []string {
+	common.LogDebug(fmt.Sprintf("[PortScan] 开始: %d个主机, 线程数=%d", len(hosts), config.ThreadNum))
+
+	// 预解析域名，避免扫描过程中大量 DNS 查询导致问题
+	hosts = preResolveDomains(hosts, time.Duration(timeout)*time.Second)
+
 	// 解析端口和排除端口
 	portList := parsers.ParsePort(ports)
 	if len(portList) == 0 {
 		common.LogError(i18n.Tr("invalid_port", ports))
 		return nil
 	}
+	common.LogDebug(fmt.Sprintf("[PortScan] 端口解析完成: %d个端口", len(portList)))
 
 	// 使用config中的排除端口配置
 	excludePorts := parsers.ParsePort(config.Target.ExcludePorts)
@@ -156,16 +219,28 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 	// 创建流式迭代器（O(1) 内存，端口喷洒策略）
 	iter := NewSocketIterator(hosts, portList, exclude)
 	totalTasks := iter.Total()
+	common.LogDebug(fmt.Sprintf("[PortScan] 总任务数: %d", totalTasks))
 
 	// 使用传入的配置
 	threadNum := config.ThreadNum
 
+	// 大规模扫描警告和线程数自动调整
+	if totalTasks > 100000 {
+		common.LogBase(fmt.Sprintf("[*] 大规模扫描: %d 个目标 (%d主机 × %d端口)", totalTasks, len(hosts), len(portList)))
+		// 如果任务数超过100万且线程数大于300，自动降低线程数
+		if totalTasks > 1000000 && threadNum > 300 {
+			oldThreadNum := threadNum
+			threadNum = 300
+			common.LogBase(fmt.Sprintf("[*] 自动调整线程数: %d -> %d (大规模扫描优化)", oldThreadNum, threadNum))
+		}
+	}
 
 	// 初始化端口扫描进度条
 	if totalTasks > 0 && config.Output.ShowProgress {
 		description := fmt.Sprintf("端口扫描中（%d线程）", threadNum)
 		common.InitProgressBar(int64(totalTasks), description)
 	}
+	common.LogDebug("[PortScan] 进度条初始化完成")
 
 	// 初始化并发控制
 	to := time.Duration(timeout) * time.Second
@@ -174,6 +249,7 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 	failedCollector := &failedPortCollector{}
 	var wg sync.WaitGroup
 
+	common.LogDebug(fmt.Sprintf("[PortScan] 开始创建线程池, size=%d", threadNum))
 	// 创建自适应线程池（支持动态调整）
 	pool, err := NewAdaptivePool(threadNum, func(task interface{}) {
 		taskInfo, ok := task.(portScanTask)
@@ -193,10 +269,13 @@ func EnhancedPortScan(hosts []string, ports string, timeout int64, config *commo
 		common.LogError(i18n.Tr("thread_pool_create_failed", err))
 		return nil
 	}
+	common.LogDebug("[PortScan] 线程池创建成功")
 	defer pool.Release()
 
+	common.LogDebug("[PortScan] 开始滑动窗口调度")
 	// 滑动窗口调度：维护固定数量的"飞行中"任务
 	slidingWindowSchedule(iter, pool, &wg, threadNum)
+	common.LogDebug("[PortScan] 滑动窗口调度完成")
 
 	// 收集结果
 	aliveAddrs := collector.GetAll()
@@ -361,6 +440,18 @@ func scanSinglePort(host string, port int, addr string, timeout time.Duration, c
 		return
 	}
 
+	// 步骤1.6：如果使用了代理且进行了数据交互，需要重建连接
+	// 因为验证阶段可能读取了Banner或发送了HTTP GET探测，污染了连接状态
+	if common.IsProxyEnabled() && verifyMethod != "direct" {
+		_ = conn.Close()
+		// 重新建立干净的连接用于服务识别
+		conn, err = connectWithRetry(addr, timeout, 3, state)
+		if err != nil {
+			handleConnectionFailure(err, host, port, addr, failedCollector)
+			return
+		}
+	}
+
 	// 步骤2：记录开放端口
 	atomic.AddInt64(count, 1)
 	collector.Add(addr)
@@ -387,62 +478,60 @@ func isTimeoutError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "i/o timeout")
 }
 
-// verifyProxyConnectionDeep 深度验证代理连接是否真正可用（4阶段验证）
+// verifyProxyConnectionDeep 深度验证代理连接是否真正可用
 // 防止透明代理/全回显代理的假连接问题
 // 返回: (是否有效, 验证方式)
+//
+// 优化策略：
+// 1. 快速 Banner 检测 (100ms) - 大部分服务会主动发送数据
+// 2. 轻量探测 (发送 \r\n) - 触发某些服务响应，同时不污染协议状态
+// 3. 短超时等待 (500ms) - 平衡准确性和性能
 func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 	// 如果没有使用代理，跳过验证
 	if !common.IsProxyEnabled() {
 		return true, "direct"
 	}
 
-	// 阶段1: 读取 Banner (200ms)
-	// 某些服务会主动发送欢迎消息
-	_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 	buf := make([]byte, 256)
+
+	// 阶段1: 快速读取 Banner (100ms)
+	// 大部分服务（SSH、FTP、SMTP、MySQL等）会主动发送欢迎消息
+	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	n, _ := conn.Read(buf)
-	_ = conn.SetReadDeadline(time.Time{}) // 重置 deadline
+	_ = conn.SetReadDeadline(time.Time{})
 
 	if n > 0 {
-		// 收到数据，检查是否为代理错误响应
 		if isProxyErrorResponse(buf[:n]) {
 			common.LogDebug(fmt.Sprintf("代理返回错误响应 %s", addr))
 			return false, "proxy_error"
 		}
-		// 收到有效 Banner，确认端口开放
 		return true, "banner"
 	}
 
-	// 阶段2: 发送探测数据 (HTTP GET with Host header)
-	// 使用完整的 HTTP 请求以获得服务器响应
-	// 从 addr 提取主机名作为 Host 头（HTTP 服务器需要正确的 Host 才会响应）
-	host := addr
-	if colonIdx := strings.LastIndex(addr, ":"); colonIdx > 0 {
-		host = addr[:colonIdx]
-	}
-	probeReq := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
+	// 阶段2: 轻量探测 - 发送 CRLF 触发响应
+	// 使用 \r\n 而非 HTTP GET，因为：
+	// - 不会污染大部分协议状态
+	// - 某些服务（如 HTTP）会返回 400 Bad Request
+	// - 速度快，只需极短超时
 	_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-	_, writeErr := conn.Write([]byte(probeReq))
-	_ = conn.SetWriteDeadline(time.Time{}) // 重置 deadline
+	_, writeErr := conn.Write([]byte("\r\n"))
+	_ = conn.SetWriteDeadline(time.Time{})
 
 	if writeErr != nil && isConnectionClosed(writeErr) {
-		// 写入失败（broken pipe/reset）= 连接已被拒绝
 		common.LogDebug(fmt.Sprintf("探测写入失败 %s: %v", addr, writeErr))
 		return false, "write_failed"
 	}
 
-	// 阶段3: 等待探测响应 (2s - 需要足够时间让 HTTP 服务器响应)
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	// 阶段3: 等待探测响应 (500ms)
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	n, readErr := conn.Read(buf)
 	_ = conn.SetReadDeadline(time.Time{})
 
 	if n > 0 {
-		// 收到响应，检查是否为代理错误
 		if isProxyErrorResponse(buf[:n]) {
 			common.LogDebug(fmt.Sprintf("代理探测返回错误 %s", addr))
 			return false, "proxy_error"
 		}
-		// 收到有效响应，确认端口开放
 		return true, "probe"
 	}
 

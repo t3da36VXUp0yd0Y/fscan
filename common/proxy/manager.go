@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -368,6 +367,13 @@ func (s *socks5Dialer) updateAverageConnectTime(duration time.Duration) {
 // ProbeProxyBehavior 探测代理是否存在"全回显"问题
 // 通过连接一个几乎肯定不可达的地址，并尝试发送数据来判断代理行为
 // 返回 true 表示代理可靠，false 表示代理存在全回显问题
+//
+// 判断标准：
+// - 连接失败 → 可靠（代理正确拒绝不可达目标）
+// - 写入失败 → 可靠（代理在数据传输时报告错误）
+// - 读取超时 → 可靠（代理转发了请求，目标没响应是正常的）
+// - 读取错误 → 可靠（代理正确报告了目标不可达）
+// - 收到数据 → 不可靠（代理伪造了响应）
 func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 	// 使用 RFC 5737 保留的测试 IP (TEST-NET-1) + 高端口
 	// 192.0.2.1 是文档专用地址，保证不会路由到真实主机
@@ -402,14 +408,8 @@ func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 	n, readErr := conn.Read(buf)
 
 	if readErr != nil {
-		// 读取超时或错误 = 目标不可达，但代理行为正常
-		// 说明代理没有伪造响应
-		errStr := readErr.Error()
-		if strings.Contains(errStr, "timeout") {
-			// 超时可能意味着代理接受了连接但没有伪造响应
-			// 这是边界情况，暂时认为不可靠
-			return false
-		}
+		// 读取超时或错误 = 目标不可达，代理行为正常
+		// 超时说明代理正确转发了请求，目标没有响应是正常的
 		// 其他错误（reset, refused等）说明代理正确报告了目标不可达
 		return true
 	}
@@ -419,6 +419,6 @@ func ProbeProxyBehavior(dialer Dialer, timeout time.Duration) bool {
 		return false
 	}
 
-	// 代理接受连接且不报错也不响应 = 全回显行为
-	return false
+	// 无错误且无数据 = EOF，说明连接被正常关闭，代理行为正常
+	return true
 }
