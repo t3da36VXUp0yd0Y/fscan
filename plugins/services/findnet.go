@@ -108,21 +108,6 @@ type NetworkInfo struct {
 	IPv6Addrs []string
 }
 
-// OneLine 返回单行格式（便于复制）
-func (ni *NetworkInfo) OneLine() string {
-	if !ni.Valid {
-		return ""
-	}
-	var parts []string
-	if ni.Hostname != "" {
-		parts = append(parts, fmt.Sprintf("[%s]", ni.Hostname))
-	}
-	if len(ni.IPv4Addrs) > 0 {
-		parts = append(parts, strings.Join(ni.IPv4Addrs, ","))
-	}
-	return strings.Join(parts, " ")
-}
-
 // Summary 返回网络信息摘要
 func (ni *NetworkInfo) Summary() string {
 	if !ni.Valid {
@@ -146,45 +131,6 @@ func (ni *NetworkInfo) Summary() string {
 	return strings.Join(parts, ", ")
 }
 
-// TreeFormat 返回tree格式的详细网络信息
-func (ni *NetworkInfo) TreeFormat() string {
-	if !ni.Valid {
-		return "网络发现失败"
-	}
-
-	var result strings.Builder
-
-	// 主机名信息
-	if ni.Hostname != "" {
-		result.WriteString(fmt.Sprintf("主机名: %s\n", ni.Hostname))
-	}
-
-	// IPv4地址树形显示
-	if len(ni.IPv4Addrs) > 0 {
-		result.WriteString(fmt.Sprintf("IPv4接口 (%d个):\n", len(ni.IPv4Addrs)))
-		for i, addr := range ni.IPv4Addrs {
-			if i == len(ni.IPv4Addrs)-1 {
-				result.WriteString(fmt.Sprintf("  └── %s\n", addr))
-			} else {
-				result.WriteString(fmt.Sprintf("  ├── %s\n", addr))
-			}
-		}
-	}
-
-	// IPv6地址树形显示
-	if len(ni.IPv6Addrs) > 0 {
-		result.WriteString(fmt.Sprintf("IPv6接口 (%d个):\n", len(ni.IPv6Addrs)))
-		for i, addr := range ni.IPv6Addrs {
-			if i == len(ni.IPv6Addrs)-1 {
-				result.WriteString(fmt.Sprintf("  └── %s\n", addr))
-			} else {
-				result.WriteString(fmt.Sprintf("  ├── %s\n", addr))
-			}
-		}
-	}
-
-	return strings.TrimRight(result.String(), "\n")
-}
 
 // RPC数据包定义
 var (

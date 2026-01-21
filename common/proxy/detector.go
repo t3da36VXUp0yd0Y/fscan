@@ -41,16 +41,6 @@ func IsProxyEnabled() bool {
 	return proxyEnabled.Load()
 }
 
-// IsSOCKS5Standard 检查SOCKS5代理是否为标准代理
-func IsSOCKS5Standard() bool {
-	return socks5Standard.Load()
-}
-
-// IsProxyInitialized 检查代理是否已初始化
-func IsProxyInitialized() bool {
-	return proxyInitialized.Load()
-}
-
 // SetProxyReliable 设置代理可靠性状态
 func SetProxyReliable(reliable bool) {
 	proxyReliable.Store(reliable)

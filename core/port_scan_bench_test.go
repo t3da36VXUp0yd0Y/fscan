@@ -83,10 +83,3 @@ func BenchmarkFailedPortCollectorAdd(b *testing.B) {
 	}
 }
 
-// BenchmarkEstimateScanTime 测试扫描时间估算性能
-func BenchmarkEstimateScanTime(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = estimateScanTime(10000, 600, 3)
-	}
-}

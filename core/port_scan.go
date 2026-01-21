@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"strings"
 	"sync"
@@ -164,28 +163,6 @@ func preResolveDomains(hosts []string, timeout time.Duration) []string {
 	}
 
 	return result
-}
-
-// estimateScanTime 估算扫描时间
-// 参数: totalTasks - 总任务数, threads - 线程数, timeout - 超时时间(秒)
-// 返回: 估算的扫描时间(秒)
-func estimateScanTime(totalTasks int, threads int, timeout int64) int64 {
-	if totalTasks == 0 || threads == 0 {
-		return 0
-	}
-
-	// 假设约50%的端口会快速返回关闭状态（平均耗时 timeout/4）
-	// 约50%的端口需要完整超时（耗时 timeout）
-	// 因此平均每个任务耗时 = timeout * 0.5 * (0.25 + 1.0) = timeout * 0.625
-	avgTaskTime := float64(timeout) * 0.625
-
-	// 计算需要多少批次（向上取整）
-	parallelBatches := math.Ceil(float64(totalTasks) / float64(threads))
-
-	// 总时间 = 批次数 × 平均任务时间
-	estimatedSeconds := int64(parallelBatches * avgTaskTime)
-
-	return estimatedSeconds
 }
 
 // EnhancedPortScan 高性能端口扫描函数

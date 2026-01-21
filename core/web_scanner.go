@@ -300,17 +300,6 @@ func SetFingerprints(host string, port int, fingerprints []string) {
 	fingerprintCache[cacheKey] = fingerprints
 }
 
-// GetFingerprints 获取目标的指纹信息
-func GetFingerprints(host string, port int) ([]string, bool) {
-	cacheKey := fmt.Sprintf("%s:%d", host, port)
-
-	fingerprintCacheMutex.RLock()
-	defer fingerprintCacheMutex.RUnlock()
-
-	fingerprints, exists := fingerprintCache[cacheKey]
-	return fingerprints, exists
-}
-
 // ===============================
 // Web扫描策略
 // ===============================
