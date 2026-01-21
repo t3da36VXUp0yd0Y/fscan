@@ -277,33 +277,6 @@ func (c *MCSClient) SetClientCoreData(width, height uint16) {
 	c.clientCoreData.DesktopHeight = height
 }
 
-//func (c *MCSClient) connect(selectedProtocol uint32) {
-//	glog.Debug("mcs client on connect", selectedProtocol)
-//	c.clientCoreData.ServerSelectedProtocol = selectedProtocol
-//
-//	// sendConnectInitial
-//	userDataBuff := bytes.Buffer{}
-//	userDataBuff.Write(c.clientCoreData.Pack())
-//	userDataBuff.Write(c.clientNetworkData.Pack())
-//	userDataBuff.Write(c.clientSecurityData.Pack())
-//
-//	ccReq := gcc.MakeConferenceCreateRequest(userDataBuff.Bytes())
-//	connectInitial := NewConnectInitial(ccReq)
-//	connectInitialBerEncoded := connectInitial.BER()
-//
-//	dataBuff := &bytes.Buffer{}
-//	ber.WriteApplicationTag(uint8(MCS_TYPE_CONNECT_INITIAL), len(connectInitialBerEncoded), dataBuff)
-//	dataBuff.Write(connectInitialBerEncoded)
-//
-//	_, err := c.transport.Write(dataBuff.Bytes())
-//	if err != nil {
-//		c.Emit("error", errors.New(fmt.Sprintf("mcs sendConnectInitial write error %v", err)))
-//		return
-//	}
-//	glog.Debug("mcs wait for data event")
-//	c.transport.Once("data", c.recvConnectResponse)
-//}
-
 func (c *MCSClient) connect(selectedProtocol uint32) {
 	glog.Debug("mcs client on connect", selectedProtocol)
 	c.clientCoreData.ServerSelectedProtocol = selectedProtocol

@@ -194,38 +194,6 @@ func formatPluginList(plugins []string) string {
 	return fmt.Sprintf("%s ... 等%d个", strings.Join(plugins[:5], ", "), len(plugins))
 }
 
-// LogPluginInfoWithPort 带端口信息的插件显示
-func (b *BaseScanStrategy) LogPluginInfoWithPort(targetHost string, targetPort int, config *common.Config) {
-	allPlugins, isCustomMode := b.GetPlugins(config)
-
-	var prefix string
-	switch b.filterType {
-	case FilterLocal:
-		prefix = i18n.GetText("concurrency_local_plugin")
-	case FilterService:
-		prefix = i18n.GetText("concurrency_service_plugin")
-	case FilterWeb:
-		prefix = i18n.GetText("concurrency_web_plugin")
-	default:
-		prefix = i18n.GetText("concurrency_plugin")
-	}
-
-	// 过滤适用的插件
-	var applicablePlugins []string
-	for _, pluginName := range allPlugins {
-		if b.pluginExists(pluginName) {
-			if b.IsPluginApplicableByName(pluginName, targetHost, targetPort, isCustomMode, config) {
-				applicablePlugins = append(applicablePlugins, pluginName)
-			}
-		}
-	}
-
-	// 插件信息不再输出，减少干扰
-	_ = applicablePlugins
-	_ = isCustomMode
-	_ = prefix
-}
-
 // ValidateConfiguration 验证扫描配置
 func (b *BaseScanStrategy) ValidateConfiguration() error {
 	return nil
