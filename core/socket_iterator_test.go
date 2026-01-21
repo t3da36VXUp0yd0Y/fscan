@@ -127,7 +127,7 @@ func TestSocketIterator_ExcludePorts(t *testing.T) {
 
 	it := NewSocketIterator(hosts, ports, exclude)
 
-	// 应该只有22和443
+	// 应该只有22和443，按优先级排序：443(优先级2) 在 22(优先级3) 之前
 	var gotPorts []int
 	for {
 		_, port, ok := it.Next()
@@ -140,8 +140,9 @@ func TestSocketIterator_ExcludePorts(t *testing.T) {
 	if len(gotPorts) != 2 {
 		t.Fatalf("期望2个端口, 实际 %d", len(gotPorts))
 	}
-	if gotPorts[0] != 22 || gotPorts[1] != 443 {
-		t.Errorf("期望 [22, 443], 实际 %v", gotPorts)
+	// 443优先级高于22，所以443在前
+	if gotPorts[0] != 443 || gotPorts[1] != 22 {
+		t.Errorf("期望 [443, 22] (按优先级排序), 实际 %v", gotPorts)
 	}
 
 	// 验证Total也正确
@@ -179,6 +180,40 @@ func TestSocketIterator_EmptyInputs(t *testing.T) {
 			t.Error("全部端口被排除应该立即返回false")
 		}
 	})
+}
+
+// TestSocketIterator_PortPrioritySort 验证端口优先级排序
+// 高价值端口（80, 443, 22等）应该排在前面
+func TestSocketIterator_PortPrioritySort(t *testing.T) {
+	hosts := []string{"192.168.1.1"}
+	// 故意乱序输入，包含高优先级和普通端口
+	ports := []int{9999, 22, 8888, 80, 7777, 443, 3389, 1234}
+
+	it := NewSocketIterator(hosts, ports, nil)
+
+	var gotPorts []int
+	for {
+		_, port, ok := it.Next()
+		if !ok {
+			break
+		}
+		gotPorts = append(gotPorts, port)
+	}
+
+	// 期望顺序：高优先级端口按优先级排序，然后是普通端口按数字升序
+	// 80(优先级1), 443(2), 22(3), 3389(4), 然后 1234, 7777, 8888, 9999
+	expected := []int{80, 443, 22, 3389, 1234, 7777, 8888, 9999}
+
+	if len(gotPorts) != len(expected) {
+		t.Fatalf("端口数量不匹配: 期望 %d, 实际 %d", len(expected), len(gotPorts))
+	}
+
+	for i, exp := range expected {
+		if gotPorts[i] != exp {
+			t.Errorf("第%d个端口: 期望 %d, 实际 %d\n完整结果: %v", i, exp, gotPorts[i], gotPorts)
+			break
+		}
+	}
 }
 
 // TestSocketIterator_SingleElements 验证单元素情况

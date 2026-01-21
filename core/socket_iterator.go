@@ -1,8 +1,34 @@
 package core
 
 import (
+	"sort"
 	"sync"
 )
+
+// highPriorityPorts 高价值端口优先级表
+// 数字越小优先级越高，用户最关心这些服务能快速出结果
+var highPriorityPorts = map[int]int{
+	80:    1,  // HTTP
+	443:   2,  // HTTPS
+	22:    3,  // SSH
+	3389:  4,  // RDP
+	445:   5,  // SMB
+	3306:  6,  // MySQL
+	1433:  7,  // MSSQL
+	6379:  8,  // Redis
+	21:    9,  // FTP
+	23:    10, // Telnet
+	8080:  11, // HTTP-Alt
+	8443:  12, // HTTPS-Alt
+	5432:  13, // PostgreSQL
+	27017: 14, // MongoDB
+	1521:  15, // Oracle
+	5900:  16, // VNC
+	25:    17, // SMTP
+	110:   18, // POP3
+	143:   19, // IMAP
+	53:    20, // DNS
+}
 
 // SocketIterator 流式生成 host:port 组合
 // 设计原则：O(1) 内存，按需生成
@@ -18,13 +44,48 @@ type SocketIterator struct {
 }
 
 // NewSocketIterator 创建流式迭代器
+// 自动对端口进行智能排序：高价值端口优先，让用户更快看到有意义的结果
 func NewSocketIterator(hosts []string, ports []int, exclude map[int]struct{}) *SocketIterator {
 	validPorts := filterExcludedPorts(ports, exclude)
+	sortedPorts := sortPortsByPriority(validPorts)
 	return &SocketIterator{
 		hosts: hosts,
-		ports: validPorts,
-		total: len(hosts) * len(validPorts),
+		ports: sortedPorts,
+		total: len(hosts) * len(sortedPorts),
 	}
+}
+
+// sortPortsByPriority 智能排序端口
+// 策略：高价值端口优先，其余按数字升序
+func sortPortsByPriority(ports []int) []int {
+	if len(ports) <= 1 {
+		return ports
+	}
+
+	result := make([]int, len(ports))
+	copy(result, ports)
+
+	sort.Slice(result, func(i, j int) bool {
+		pi, pj := result[i], result[j]
+		priI, okI := highPriorityPorts[pi]
+		priJ, okJ := highPriorityPorts[pj]
+
+		// 都有优先级：按优先级排序
+		if okI && okJ {
+			return priI < priJ
+		}
+		// 只有一个有优先级：有优先级的排前面
+		if okI {
+			return true
+		}
+		if okJ {
+			return false
+		}
+		// 都没有优先级：按端口号升序
+		return pi < pj
+	})
+
+	return result
 }
 
 // Next 返回下一个 host:port 组合，ok=false 表示迭代结束

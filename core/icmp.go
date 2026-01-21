@@ -38,6 +38,7 @@ var pingErrorKeywords = []string{
 }
 
 // CheckLive 检测主机存活状态
+// 支持 ICMP/Ping 探测，并在响应率过低时自动启用 TCP 补充探测
 func CheckLive(hostslist []string, Ping bool, config *common.Config, state *common.State) []string {
 	// 创建局部WaitGroup
 	var livewg sync.WaitGroup
@@ -65,8 +66,49 @@ func CheckLive(hostslist []string, Ping bool, config *common.Config, state *comm
 	livewg.Wait()
 	close(chanHosts)
 
+	// TCP 补充探测：当 ICMP/Ping 响应率过低时自动启用
+	// 这对防火墙过滤 ICMP 的环境特别有用
+	aliveHosts = tcpSupplementaryProbe(hostslist, aliveHosts, config)
+
 	// 输出存活统计信息
 	printAliveStats(aliveHosts, hostslist)
+
+	return aliveHosts
+}
+
+// tcpSupplementaryProbe TCP 补充探测
+// 当 ICMP 响应率过低时（<10%），对未响应主机进行 TCP 探测
+func tcpSupplementaryProbe(allHosts []string, aliveHosts []string, config *common.Config) []string {
+	totalHosts := len(allHosts)
+	if totalHosts == 0 {
+		return aliveHosts
+	}
+
+	// 计算 ICMP 响应率
+	responseRate := float64(len(aliveHosts)) / float64(totalHosts)
+
+	// 响应率高于阈值，无需补充探测
+	if responseRate >= tcpProbeThreshold {
+		return aliveHosts
+	}
+
+	// 获取未响应的主机
+	unrespondedHosts := getUnrespondedHosts(allHosts, aliveHosts)
+	if len(unrespondedHosts) == 0 {
+		return aliveHosts
+	}
+
+	// 提示用户正在进行 TCP 补充探测
+	common.LogInfo(i18n.Tr("tcp_probe_low_icmp_rate", fmt.Sprintf("%.1f%%", responseRate*100), len(unrespondedHosts)))
+
+	// 执行 TCP 补充探测
+	tcpAliveHosts := runTcpProbeForHosts(unrespondedHosts, config)
+
+	// 合并结果
+	if len(tcpAliveHosts) > 0 {
+		aliveHosts = append(aliveHosts, tcpAliveHosts...)
+		common.LogInfo(i18n.Tr("tcp_probe_found", len(tcpAliveHosts)))
+	}
 
 	return aliveHosts
 }
@@ -621,4 +663,105 @@ func ArrayCountValueTop(arrInit []string, length int, flag bool) (arrTop []strin
 	}
 
 	return
+}
+
+// =============================================================================
+// TCP 补充探测 - 当 ICMP 响应率过低时自动启用
+// =============================================================================
+
+// tcpProbeCommonPorts TCP 探测使用的常用端口
+// 这些端口在大多数服务器上至少有一个开放
+var tcpProbeCommonPorts = []int{80, 443, 22, 445}
+
+// tcpProbeTimeout TCP 探测超时时间（较短，只做存活判断）
+const tcpProbeTimeout = 2 * time.Second
+
+// tcpProbeThreshold TCP 补充探测触发阈值
+// 当 ICMP 响应率低于此值时，自动启用 TCP 补充探测
+const tcpProbeThreshold = 0.1 // 10%
+
+// tcpProbeAlive 使用 TCP 探测主机是否存活
+// 尝试连接常用端口，任一端口响应即认为存活
+func tcpProbeAlive(host string) bool {
+	for _, port := range tcpProbeCommonPorts {
+		addr := fmt.Sprintf("%s:%d", host, port)
+		conn, err := common.WrapperTcpWithTimeout("tcp", addr, tcpProbeTimeout)
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+	}
+	return false
+}
+
+// runTcpProbeForHosts 对指定主机列表进行 TCP 补充探测
+// 返回存活的主机列表
+func runTcpProbeForHosts(hosts []string, config *common.Config) []string {
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	aliveHosts := make([]string, 0)
+
+	// 并发控制，避免资源耗尽
+	concurrency := 50
+	if len(hosts) < concurrency {
+		concurrency = len(hosts)
+	}
+	limiter := make(chan struct{}, concurrency)
+
+	for _, host := range hosts {
+		wg.Add(1)
+		limiter <- struct{}{}
+
+		go func(h string) {
+			defer func() {
+				<-limiter
+				wg.Done()
+			}()
+
+			if tcpProbeAlive(h) {
+				mu.Lock()
+				aliveHosts = append(aliveHosts, h)
+				mu.Unlock()
+
+				// 保存结果
+				result := &output.ScanResult{
+					Time:   time.Now(),
+					Type:   output.TypeHost,
+					Target: h,
+					Status: "alive",
+					Details: map[string]interface{}{
+						"protocol": "TCP",
+					},
+				}
+				_ = common.SaveResult(result)
+
+				if !config.Output.Silent {
+					common.LogInfo(i18n.Tr("host_alive", h, "TCP"))
+				}
+			}
+		}(host)
+	}
+
+	wg.Wait()
+	return aliveHosts
+}
+
+// getUnrespondedHosts 获取未响应的主机列表
+func getUnrespondedHosts(allHosts []string, aliveHosts []string) []string {
+	aliveSet := make(map[string]struct{}, len(aliveHosts))
+	for _, h := range aliveHosts {
+		aliveSet[h] = struct{}{}
+	}
+
+	unresponded := make([]string, 0, len(allHosts)-len(aliveHosts))
+	for _, h := range allHosts {
+		if _, alive := aliveSet[h]; !alive {
+			unresponded = append(unresponded, h)
+		}
+	}
+	return unresponded
 }

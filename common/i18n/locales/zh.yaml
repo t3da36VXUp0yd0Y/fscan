@@ -269,6 +269,10 @@ segment_16_alive:
   other: "{{.Arg1}}.0.0/16 网段存活: {{.Arg2}}"
 segment_24_alive:
   other: "{{.Arg1}}.0/24 网段存活: {{.Arg2}}"
+tcp_probe_low_icmp_rate:
+  other: "ICMP响应率过低({{.Arg1}})，启用TCP补充探测({{.Arg2}}个主机)"
+tcp_probe_found:
+  other: "TCP补充探测发现 {{.Arg1}} 个存活主机"
 
 # ========================= 存活扫描统计消息 =========================
 parse_target_failed:

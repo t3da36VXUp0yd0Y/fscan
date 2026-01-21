@@ -269,6 +269,10 @@ segment_16_alive:
   other: "{{.Arg1}}.0.0/16 segment alive: {{.Arg2}}"
 segment_24_alive:
   other: "{{.Arg1}}.0/24 segment alive: {{.Arg2}}"
+tcp_probe_low_icmp_rate:
+  other: "Low ICMP response rate ({{.Arg1}}), enabling TCP supplementary probe ({{.Arg2}} hosts)"
+tcp_probe_found:
+  other: "TCP probe found {{.Arg1}} alive hosts"
 
 # ========================= Alive Scan Stats Messages =========================
 parse_target_failed:
