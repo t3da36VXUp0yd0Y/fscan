@@ -1,9 +1,6 @@
 package common
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/shadow1ng/fscan/common/logging"
 )
 
@@ -33,23 +30,6 @@ func RemoveDuplicate(old []string) []string {
 	}
 
 	return result
-}
-
-// joinStrings 连接字符串切片
-func joinStrings(slice []string, sep string) string {
-	return strings.Join(slice, sep)
-}
-
-// joinInts 连接整数切片
-func joinInts(slice []int, sep string) string {
-	if len(slice) == 0 {
-		return ""
-	}
-	strs := make([]string, len(slice))
-	for i, v := range slice {
-		strs[i] = strconv.Itoa(v)
-	}
-	return strings.Join(strs, sep)
 }
 
 // logLevelMap 日志级别字符串到级别的映射

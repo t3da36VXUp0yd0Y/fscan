@@ -121,9 +121,7 @@ func parsePasswords(fv *FlagVars) []string {
 
 	// 命令行密码
 	if fv.Password != "" {
-		for _, p := range strings.Split(fv.Password, ",") {
-			passwords = append(passwords, p)
-		}
+		passwords = append(passwords, strings.Split(fv.Password, ",")...)
 	}
 
 	// 从文件读取
@@ -135,9 +133,7 @@ func parsePasswords(fv *FlagVars) []string {
 
 	// 额外密码
 	if fv.AddPasswords != "" {
-		for _, p := range strings.Split(fv.AddPasswords, ",") {
-			passwords = append(passwords, p)
-		}
+		passwords = append(passwords, strings.Split(fv.AddPasswords, ",")...)
 	}
 
 	return removeDuplicate(passwords)

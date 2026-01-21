@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -46,10 +45,6 @@ type ProgressManager struct {
 	lastActivity     time.Time
 	activityTicker   *time.Ticker
 	stopActivityChan chan struct{}
-
-	// 内存监控相关
-	lastMemUpdate time.Time
-	memStats      runtime.MemStats
 
 	// 进度条更新控制（减少 Windows 终端的重复输出）
 	lastRenderedPercent int
@@ -124,8 +119,7 @@ func (pm *ProgressManager) InitProgress(total int64, description string) {
 	pm.enabled = true
 	pm.lastActivity = time.Now()
 	pm.spinnerIndex = 0
-	pm.lastMemUpdate = time.Now().Add(-2 * time.Second) // 强制首次更新内存
-	pm.lastRenderedPercent = -1                         // 强制首次渲染
+	pm.lastRenderedPercent = -1 // 强制首次渲染
 
 	// 为进度条保留空间
 	pm.setupProgressSpace()
@@ -607,36 +601,6 @@ func (pm *ProgressManager) getActivityIndicator() string {
 
 	// 如果长时间没有活动，显示旋转指示器表明程序仍在运行
 	return spinnerChars[pm.spinnerIndex]
-}
-
-// getMemoryInfo 获取内存使用信息
-func (pm *ProgressManager) getMemoryInfo() string {
-	// 限制内存统计更新频率以提高性能（每秒最多一次）
-	now := time.Now()
-	if now.Sub(pm.lastMemUpdate) >= time.Second {
-		runtime.ReadMemStats(&pm.memStats)
-		pm.lastMemUpdate = now
-	}
-
-	// 获取当前使用的内存（以MB为单位）
-	memUsedMB := float64(pm.memStats.Alloc) / 1024 / 1024
-
-	// 根据内存使用量选择颜色
-	var colorCode string
-	if GetFlagVars().NoColor {
-		return fmt.Sprintf("内存:%.1fMB", memUsedMB)
-	}
-
-	// 根据内存使用量设置颜色
-	if memUsedMB < 50 {
-		colorCode = AnsiGreen // 绿色 - 内存使用较低
-	} else if memUsedMB < 100 {
-		colorCode = AnsiYellow // 黄色 - 内存使用中等
-	} else {
-		colorCode = AnsiRed // 红色 - 内存使用较高
-	}
-
-	return fmt.Sprintf("%s内存:%.1fMB%s", colorCode, memUsedMB, AnsiReset)
 }
 
 // =============================================================================
