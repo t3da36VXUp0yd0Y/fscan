@@ -108,70 +108,10 @@ func (f *failedPortCollector) Count() int {
 	return count
 }
 
-// preResolveDomains 预解析域名列表
-// 将域名解析为 IP，解析失败的域名保留原样
-// 这样可以避免扫描过程中大量并发 DNS 查询导致系统资源耗尽
-func preResolveDomains(hosts []string, timeout time.Duration) []string {
-	if len(hosts) == 0 {
-		return hosts
-	}
-
-	// 检查是否有需要解析的域名
-	needResolve := false
-	for _, host := range hosts {
-		if net.ParseIP(host) == nil {
-			needResolve = true
-			break
-		}
-	}
-
-	if !needResolve {
-		return hosts
-	}
-
-	common.LogDebug(fmt.Sprintf("[DNS] 开始预解析 %d 个主机", len(hosts)))
-
-	result := make([]string, 0, len(hosts))
-	resolved := 0
-	failed := 0
-
-	for _, host := range hosts {
-		// 如果已经是 IP，直接添加
-		if net.ParseIP(host) != nil {
-			result = append(result, host)
-			continue
-		}
-
-		// 尝试解析域名
-		ips, err := net.LookupHost(host)
-		if err != nil || len(ips) == 0 {
-			// 解析失败，保留原域名（后续连接时会再次尝试解析）
-			common.LogDebug(fmt.Sprintf("[DNS] 解析失败: %s - %v", host, err))
-			result = append(result, host)
-			failed++
-			continue
-		}
-
-		// 使用第一个解析结果
-		result = append(result, ips[0])
-		resolved++
-		common.LogDebug(fmt.Sprintf("[DNS] %s -> %s", host, ips[0]))
-	}
-
-	if resolved > 0 || failed > 0 {
-		common.LogDebug(fmt.Sprintf("[DNS] 预解析完成: 成功=%d, 失败=%d", resolved, failed))
-	}
-
-	return result
-}
-
 // EnhancedPortScan 高性能端口扫描函数
 // 使用滑动窗口调度 + 自适应线程池 + 流式迭代器
 func EnhancedPortScan(hosts []string, ports string, timeout int64, config *common.Config, state *common.State) []string {
 	common.LogDebug(fmt.Sprintf("[PortScan] 开始: %d个主机, 线程数=%d", len(hosts), config.ThreadNum))
-
-	// 预解析域名，避免扫描过程中大量 DNS 查询导致问题
-	hosts = preResolveDomains(hosts, time.Duration(timeout)*time.Second)
 
 	// 解析端口和排除端口
 	portList := parsers.ParsePort(ports)
