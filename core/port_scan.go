@@ -411,9 +411,10 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 
 	buf := make([]byte, 256)
 
-	// 阶段1: 快速读取 Banner (100ms)
+	// 阶段1: 读取 Banner (500ms)
 	// 大部分服务（SSH、FTP、SMTP、MySQL等）会主动发送欢迎消息
-	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	// 不能等太久，否则代理可能因空闲而关闭连接
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	n, _ := conn.Read(buf)
 	_ = conn.SetReadDeadline(time.Time{})
 
@@ -425,13 +426,14 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 		return true, "banner"
 	}
 
-	// 阶段2: 轻量探测 - 发送 CRLF 触发响应
-	// 使用 \r\n 而非 HTTP GET，因为：
-	// - 不会污染大部分协议状态
-	// - 某些服务（如 HTTP）会返回 400 Bad Request
-	// - 速度快，只需极短超时
+	// 阶段2: HTTP 探针探测（参考 fscanx）
+	// 使用 HTTP GET 而非 CRLF，因为：
+	// - 大部分服务会对 HTTP 请求有明确响应（即使是错误响应）
+	// - 在透明代理环境下能更有效地检测真实连接状态
+	// - 即使是非 HTTP 服务也会返回某种响应或关闭连接
+	httpProbe := []byte("GET / HTTP/1.0\r\n\r\n")
 	_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
-	_, writeErr := conn.Write([]byte("\r\n"))
+	_, writeErr := conn.Write(httpProbe)
 	_ = conn.SetWriteDeadline(time.Time{})
 
 	if writeErr != nil && isConnectionClosed(writeErr) {
@@ -439,8 +441,9 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 		return false, "write_failed"
 	}
 
-	// 阶段3: 等待探测响应 (500ms)
-	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// 阶段3: 等待探测响应 (2s)
+	// TUN 模式下代理链路延迟较大，需要更长超时
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, readErr := conn.Read(buf)
 	_ = conn.SetReadDeadline(time.Time{})
 
@@ -463,14 +466,12 @@ func verifyProxyConnectionDeep(conn net.Conn, addr string) (bool, string) {
 		}
 	}
 
-	// 代理不可靠 + 无响应 = 假连接（全回显代理的典型行为）
-	if !common.IsProxyReliable() {
-		common.LogDebug(fmt.Sprintf("代理不可靠且无响应，判定为假连接 %s", addr))
-		return false, "no_response_unreliable"
-	}
-
-	// 代理可靠 + 无响应 = 保守确认开放（可能是静默服务）
-	return true, "uncertain"
+	// 无响应 = 端口关闭（参考 fscanx 方案）
+	// 在透明代理环境下，ProxyReliable 检测可能被污染，不可信
+	// 因此采用更保守的策略：无响应一律判定为关闭
+	// 这样可以避免透明代理导致的全端口误报问题
+	common.LogDebug(fmt.Sprintf("代理连接无响应，判定为端口关闭 %s", addr))
+	return false, "no_response"
 }
 
 // isProxyErrorResponse 检查是否为代理错误响应
