@@ -113,8 +113,9 @@ func (s *ServiceScanStrategy) Description() string {
 
 // Execute 执行服务扫描策略
 func (s *ServiceScanStrategy) Execute(config *common.Config, state *common.State, info common.HostInfo, ch chan struct{}, wg *sync.WaitGroup) {
-	// 验证扫描目标
-	if info.Host == "" {
+	// 验证扫描目标（需要同时检查 -h 和 -hf 参数）
+	fv := common.GetFlagVars()
+	if info.Host == "" && fv.HostsFile == "" {
 		common.LogError(i18n.GetText("parse_error_target_empty"))
 		return
 	}
