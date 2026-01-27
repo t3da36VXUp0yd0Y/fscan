@@ -16,12 +16,14 @@ import (
 
 // Telnet协议时间常量
 const (
-	telnetReadDelay     = 200 * time.Millisecond  // 读取间隔延迟
-	telnetRetryDelay    = 500 * time.Millisecond  // 重试延迟
-	telnetAuthDelay     = 1000 * time.Millisecond // 认证后等待延迟
-	telnetReadTimeout   = 2 * time.Second         // 读取超时
-	telnetBannerTimeout = 3 * time.Second         // Banner读取超时
-	telnetMaxAttempts   = 10                      // 最大尝试次数
+	telnetReadDelay      = 200 * time.Millisecond  // 读取间隔延迟
+	telnetRetryDelay     = 500 * time.Millisecond  // 重试延迟
+	telnetAuthDelay      = 1000 * time.Millisecond // 认证后等待延迟
+	telnetReadTimeout    = 2 * time.Second         // 读取超时
+	telnetBannerTimeout  = 3 * time.Second         // Banner读取超时
+	telnetRCECmdTimeout  = 5 * time.Second         // RCE命令执行超时
+	telnetRCEExtraTimeout = 10 * time.Second       // RCE验证额外超时
+	telnetMaxAttempts    = 10                      // 最大尝试次数
 )
 
 // TelnetPlugin Telnet扫描插件
@@ -44,7 +46,11 @@ func (p *TelnetPlugin) Scan(ctx context.Context, info *common.HostInfo, config *
 
 	// 检测未授权访问
 	if result := p.testUnauthAccess(ctx, info, config, state); result != nil && result.Success {
-		common.LogSuccess(i18n.Tr("telnet_service", target, result.Banner))
+		common.LogVuln(i18n.Tr("telnet_service", target, result.Banner))
+		// 验证命令执行能力
+		if ok, osType, evidence := p.verifyCommandExecution(ctx, info, "", "", config, state); ok {
+			common.LogVuln(i18n.Tr("telnet_unauth_rce", target, osType, evidence))
+		}
 		return result
 	}
 
@@ -72,6 +78,10 @@ func (p *TelnetPlugin) Scan(ctx context.Context, info *common.HostInfo, config *
 
 	if result.Success {
 		common.LogVuln(i18n.Tr("telnet_credential", target, result.Username, result.Password))
+		// 验证命令执行能力
+		if ok, osType, evidence := p.verifyCommandExecution(ctx, info, result.Username, result.Password, config, state); ok {
+			common.LogVuln(i18n.Tr("telnet_credential_rce", target, result.Username, result.Password, osType, evidence))
+		}
 	}
 
 	return result
@@ -537,7 +547,11 @@ func (p *TelnetPlugin) identifyService(ctx context.Context, info *common.HostInf
 			banner = "Telnet远程终端服务"
 		}
 
-		common.LogSuccess(i18n.Tr("telnet_service", target, banner))
+		if p.isShellPrompt(cleaned) {
+			common.LogVuln(i18n.Tr("telnet_service", target, banner))
+		} else {
+			common.LogSuccess(i18n.Tr("telnet_service", target, banner))
+		}
 
 		resultChan <- &ScanResult{
 			Success: true,
@@ -555,6 +569,180 @@ func (p *TelnetPlugin) identifyService(ctx context.Context, info *common.HostInf
 			Success: false,
 			Service: "telnet",
 			Error:   ctx.Err(),
+		}
+	}
+}
+
+// verifyCommandExecution 验证Telnet命令执行能力（RCE检测）
+func (p *TelnetPlugin) verifyCommandExecution(ctx context.Context, info *common.HostInfo, username, password string, config *common.Config, state *common.State) (bool, string, string) {
+	target := info.Target()
+
+	type rceResult struct {
+		ok       bool
+		osType   string
+		evidence string
+	}
+
+	resultChan := make(chan rceResult, 1)
+
+	go func() {
+		conn, err := common.WrapperTcpWithTimeout("tcp", target, config.Timeout)
+		if err != nil {
+			resultChan <- rceResult{}
+			return
+		}
+		defer func() { _ = conn.Close() }()
+
+		_ = conn.SetDeadline(time.Now().Add(config.Timeout + telnetRCEExtraTimeout))
+
+		// 需要认证时先登录
+		if username != "" || password != "" {
+			if !p.performTelnetAuth(conn, username, password) {
+				resultChan <- rceResult{}
+				return
+			}
+		} else {
+			// 未授权访问：等待并消费初始 banner/prompt
+			p.drainBuffer(conn)
+		}
+
+		// 等待 shell 稳定后清空缓冲区
+		time.Sleep(telnetRetryDelay)
+		p.drainBuffer(conn)
+
+		// 尝试 Linux/Unix 命令
+		output, err := p.sendCommand(conn, "echo CMD_START && id && uname -a && echo CMD_END\r\n", telnetRCECmdTimeout)
+		if err == nil && strings.Contains(output, "CMD_START") {
+			if osType := p.detectOSType(output); osType != "" {
+				resultChan <- rceResult{true, osType, p.extractEvidence(output)}
+				return
+			}
+		}
+
+		// 尝试 Windows 命令
+		output, err = p.sendCommand(conn, "echo CMD_START && whoami && ver && echo CMD_END\r\n", telnetRCECmdTimeout)
+		if err == nil && strings.Contains(output, "CMD_START") {
+			lower := strings.ToLower(output)
+			if strings.Contains(lower, "windows") || strings.Contains(lower, "microsoft") {
+				resultChan <- rceResult{true, "Windows", p.extractEvidence(output)}
+				return
+			}
+		}
+
+		// 尝试网络设备命令
+		output, err = p.sendCommand(conn, "show version\r\n", telnetRCECmdTimeout)
+		if err == nil {
+			if strings.Contains(output, "Cisco IOS") {
+				resultChan <- rceResult{true, "Cisco IOS", p.extractEvidence(output)}
+				return
+			}
+			if strings.Contains(output, "Huawei") || strings.Contains(output, "VRP") {
+				resultChan <- rceResult{true, "Huawei VRP", p.extractEvidence(output)}
+				return
+			}
+		}
+
+		resultChan <- rceResult{}
+	}()
+
+	select {
+	case r := <-resultChan:
+		return r.ok, r.osType, r.evidence
+	case <-ctx.Done():
+		return false, "", ""
+	}
+}
+
+// sendCommand 发送命令并读取输出
+func (p *TelnetPlugin) sendCommand(conn net.Conn, cmd string, timeout time.Duration) (string, error) {
+	_ = conn.SetWriteDeadline(time.Now().Add(timeout))
+	if _, err := conn.Write([]byte(cmd)); err != nil {
+		return "", err
+	}
+
+	time.Sleep(telnetAuthDelay)
+
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	var result strings.Builder
+	buffer := make([]byte, 4096)
+
+	// 多次读取以收集完整输出
+	for i := 0; i < 3; i++ {
+		n, err := conn.Read(buffer)
+		if n > 0 {
+			p.handleIACNegotiation(conn, buffer[:n])
+			result.WriteString(p.cleanResponse(string(buffer[:n])))
+		}
+		if err != nil {
+			break
+		}
+		time.Sleep(telnetReadDelay)
+	}
+
+	return result.String(), nil
+}
+
+// detectOSType 从命令输出推断系统类型
+func (p *TelnetPlugin) detectOSType(output string) string {
+	lower := strings.ToLower(output)
+
+	if strings.Contains(output, "uid=") || strings.Contains(output, "gid=") {
+		if strings.Contains(lower, "busybox") {
+			return "Linux/BusyBox"
+		}
+		return "Linux"
+	}
+
+	if strings.Contains(lower, "linux") || strings.Contains(lower, "gnu") {
+		return "Linux"
+	}
+
+	if strings.Contains(lower, "windows") || strings.Contains(lower, "microsoft") {
+		return "Windows"
+	}
+
+	if strings.Contains(output, "Cisco IOS") {
+		return "Cisco IOS"
+	}
+
+	if strings.Contains(output, "Huawei") || strings.Contains(output, "VRP") {
+		return "Huawei VRP"
+	}
+
+	return ""
+}
+
+// extractEvidence 从命令输出中提取关键证据信息
+func (p *TelnetPlugin) extractEvidence(output string) string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "CMD_START" || line == "CMD_END" {
+			continue
+		}
+		// 跳过回显的命令本身
+		if strings.HasPrefix(line, "echo ") || strings.HasPrefix(line, "id") || strings.HasPrefix(line, "show ") {
+			continue
+		}
+		if len(line) > 100 {
+			return line[:100] + "..."
+		}
+		return line
+	}
+	return ""
+}
+
+// drainBuffer 消费连接中的待读数据
+func (p *TelnetPlugin) drainBuffer(conn net.Conn) {
+	buf := make([]byte, 4096)
+	_ = conn.SetReadDeadline(time.Now().Add(telnetReadTimeout))
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			p.handleIACNegotiation(conn, buf[:n])
+		}
+		if err != nil {
+			break
 		}
 	}
 }
