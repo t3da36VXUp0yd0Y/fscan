@@ -4,28 +4,20 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/shadow1ng/fscan/Common"
 	"github.com/shadow1ng/fscan/Core"
+	"github.com/shadow1ng/fscan/common"
 )
 
 func main() {
-	Common.InitLogger()
+	// Parse command-line arguments and initialize scan configuration
+	var info common.HostInfo
+	common.Flag(&info)
+	common.Parse(&info)
 
-	var Info Common.HostInfo
-	Common.Flag(&Info)
-
-	// 解析 CLI 参数
-	if err := Common.Parse(&Info); err != nil {
+	// Run the core scanning engine
+	err := Core.Scan(info)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] Scan failed: %v\n", err)
 		os.Exit(1)
 	}
-
-	// 初始化输出系统，如果失败则直接退出
-	if err := Common.InitOutput(); err != nil {
-		Common.LogError(fmt.Sprintf("初始化输出系统失败: %v", err))
-		os.Exit(1)
-	}
-	defer Common.CloseOutput()
-
-	// 执行 CLI 扫描逻辑
-	Core.Scan(Info)
 }
