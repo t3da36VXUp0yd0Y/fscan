@@ -22,5 +22,6 @@ func main() {
 	}
 
 	// Print a completion message so it's clear the scan finished successfully
-	fmt.Println("[INFO] Scan completed.")
+	fmt.Println("[INFO] Scan completed successfully.")
+	fmt.Println("[INFO] Review output above for any findings.")
 }
