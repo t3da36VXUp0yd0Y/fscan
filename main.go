@@ -20,4 +20,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "[ERROR] Scan failed: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Print a completion message so it's clear the scan finished successfully
+	fmt.Println("[INFO] Scan completed.")
 }
